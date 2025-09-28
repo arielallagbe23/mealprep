@@ -208,15 +208,13 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     <RequireAuth>
       <div className="w-full min-h-screen bg-gradient-to-b from-gray-900 to-gray-900 px-4 py-6">
         <div className="w-full max-w-md mx-auto space-y-6">
-
-
           {/* Bloc paramètres */}
           <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-4 shadow-sm">
             {/* Input + boutons repas */}
 
-          <h1 className="text-xl md:text-2xl font-bold text-center text-white">
-            🍽️ Composer un repas
-          </h1>
+            <h1 className="text-xl md:text-2xl font-bold text-center text-white">
+              🍽️ Composer un repas
+            </h1>
 
             <div className="grid grid-cols-1 gap-3">
               <label className="text-sm text-gray-700 dark:text-gray-300">
@@ -368,13 +366,23 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
               <div className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
                 <span>Nombre de repas :</span>
                 <span className="font-semibold">{nbRepas}</span>
-                <button
-                  type="button"
-                  onClick={() => setNbRepas((n) => n + 1)}
-                  className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-bold active:scale-95 transition"
-                >
-                  +
-                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNbRepas((n) => Math.max(1, n - 1))}
+                    className="px-4 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 font-bold active:scale-95 transition"
+                  >
+                    –
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNbRepas((n) => n + 1)}
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-bold active:scale-95 transition"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
 
               {selectedList.length === 0 ? (
@@ -408,7 +416,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
 
             <button
               disabled={mealTargetKcal <= 0 || selectedList.length === 0}
-              className={`w-full py-3 rounded-xl font-semibold text-white ${
+              className={`w-full py-3 mb-20 rounded-xl font-semibold text-white ${
                 mealTargetKcal <= 0 || selectedList.length === 0
                   ? "bg-gray-600 cursor-not-allowed"
                   : "bg-green-600 hover:bg-green-700 active:scale-95 transition"
