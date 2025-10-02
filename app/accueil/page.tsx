@@ -28,12 +28,27 @@ export default function Accueil() {
             </span>
           </p>
 
-          <Link
-            href="/composer"
-            className="block w-full py-3 px-6 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
-          >
-            Composer un repas
-          </Link>
+<Link
+  href="/composer"
+  className="block w-full py-3 px-6 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
+>
+  Composer un repas
+</Link>
+
+<Link
+  href="/meals"
+  className="block w-full py-3 px-6 rounded-lg bg-purple-600 text-white font-semibold hover:bg-purple-700 transition"
+>
+  Mes repas enregistrés
+</Link>
+
+<Link
+  href="/shopping"
+  className="block w-full py-3 px-6 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition"
+>
+  Ma liste de courses
+</Link>
+
 
           <button
             onClick={onLogout}

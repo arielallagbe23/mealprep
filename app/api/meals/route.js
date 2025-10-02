@@ -1,93 +1,54 @@
-import { db } from "../../lib/firebase.js";
-import { authMiddleware } from "../users/route.js"; // réutilisation middleware
+export const runtime = "nodejs";
+import { adminDb } from "@/lib/firebaseAdmin";
 
-const mealsColl = () => db.collection("meals");
-const foodsColl = () => db.collection("foods");
-
-// 🔧 util: calcule kcal pour chaque item
-async function enrichItems(rawItems = []) {
-  if (!Array.isArray(rawItems) || rawItems.length === 0) return { items: [], totalKcal: 0 };
-
-  const ids = [...new Set(rawItems.map(it => String(it.foodId)))];
-  const snaps = await Promise.all(ids.map(id => foodsColl().doc(id).get()));
-  const map = {};
-  snaps.forEach(s => { if (s.exists) map[s.id] = s.data(); });
-
-  const items = [];
-  let totalKcal = 0;
-
-  for (const it of rawItems) {
-    const f = map[String(it.foodId)];
-    if (!f) continue;
-    const grams = Number(it.grams || 0);
-    const kcal = Math.round((f.caloriesPer100g || 0) * grams / 100);
-    items.push({ foodId: String(it.foodId), name: f.nom, grams, kcal });
-    totalKcal += kcal;
-  }
-
-  return { items, totalKcal };
-}
-
-// 🟢 POST /api/meals → créer un repas
-export async function POST(req) {
-  try {
-    const body = await req.json();
-    const { date, mealType, items } = body;
-
-    if (!date || !mealType || !Array.isArray(items)) {
-      return new Response(JSON.stringify({ error: "date, mealType et items requis" }), { status: 400 });
-    }
-
-    const user = await authMiddleware(req);
-    if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
-
-    const { items: cooked, totalKcal } = await enrichItems(items);
-    const now = new Date();
-
-    const payload = {
-      userId: user.uid,
-      date: String(date),
-      mealType: String(mealType),
-      items: cooked,
-      totalKcal,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const ref = await mealsColl().add(payload);
-    return new Response(JSON.stringify({ id: ref.id, ...payload }), { status: 201 });
-  } catch (e) {
-    console.error(e);
-    return new Response(JSON.stringify({ error: "Erreur serveur" }), { status: 500 });
-  }
-}
-
-// 🟢 GET /api/meals?date=2025-09-26&mealType=dejeuner
+// LISTE des repas de l'utilisateur
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const date = searchParams.get("date");
-    const mealType = searchParams.get("mealType");
+    const userId = searchParams.get("userId");
+    if (!userId) return new Response(JSON.stringify({ error:"userId requis" }), { status: 400 });
 
-    if (!date) {
-      return new Response(JSON.stringify({ error: "date requis (YYYY-MM-DD)" }), { status: 400 });
-    }
-
-    const user = await authMiddleware(req);
-    if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
-
-    let q = mealsColl()
-      .where("userId", "==", user.uid)
-      .where("date", "==", String(date));
-
-    if (mealType) q = q.where("mealType", "==", String(mealType));
-
-    const snap = await q.orderBy("createdAt", "desc").get();
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-    return new Response(JSON.stringify(items), { status: 200 });
+    const snap = await adminDb.collection("meals").where("userId","==",userId).orderBy("createdAt","desc").get();
+    const meals = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return new Response(JSON.stringify(meals), { status: 200 });
   } catch (e) {
-    console.error(e);
+    console.error("MEALS LIST ERROR", e);
     return new Response(JSON.stringify({ error: "Erreur serveur" }), { status: 500 });
   }
 }
+
+// ENREGISTRER un repas
+export async function POST(req) {
+  try {
+    const body = await req.json();
+    const { userId, name, portions = 1, items = [] } = body || {};
+    if (!userId || !name || !Array.isArray(items) || items.length === 0) {
+      return new Response(JSON.stringify({ error:"Champs requis: userId, name, items[]" }), { status: 400 });
+    }
+
+    // on ne sauvegarde que ce qui est utile et stable
+    const cleanItems = items.map(it => ({
+      foodId: it.id || it.foodId,
+      nom: it.nom,
+      typeName: it.typeName || "Autres",
+      caloriesPer100g: Number(it.caloriesPer100g) || 0,
+      gramsPerPortion: Number(it.grams) || Number(it.gramsPerPortion) || 0
+    }));
+
+    const doc = {
+      userId,
+      name,
+      portions: Number(portions) || 1,
+      items: cleanItems,
+      createdAt: new Date().toISOString(),
+    };
+
+    const ref = await adminDb.collection("meals").add(doc);
+    return new Response(JSON.stringify({ id: ref.id, ...doc }), { status: 201 });
+  } catch (e) {
+    console.error("MEALS CREATE ERROR", e);
+    return new Response(JSON.stringify({ error: "Erreur serveur" }), { status: 500 });
+  }
+}
+
+

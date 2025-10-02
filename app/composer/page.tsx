@@ -25,14 +25,6 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   );
   const [nbRepas, setNbRepas] = useState(1);
   const [breakfastKcal, setBreakfastKcal] = useState<string>("500"); // kcal du petit-déj saisi
-  const today = () => new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-
-  async function getAuthToken(user: any) {
-    // Essaie Firebase Auth (getIdToken), sinon un token déjà stocké dans ton useAuth
-    if (user?.getIdToken) return await user.getIdToken();
-    if (user?.token) return user.token;
-    return null;
-  }
 
   // --- Fetch aliments ---
   useEffect(() => {
@@ -214,45 +206,40 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     );
   };
 
-  // fonction d’enregistrement (mets-la dans le composant)
-  const saveMeal = async () => {
-    try {
-      const token = await getAuthToken(user);
-      if (!token) throw new Error("Non authentifié");
+  async function saveMeal() {
+  try {
+    if (!user?.uid) throw new Error("Utilisateur non connecté");
+    if (selectedList.length === 0) throw new Error("Aucun aliment sélectionné");
 
-      // items sous la forme attendue par l’API: [{ foodId, grams }]
-      // Ici on enregistre par portion, et on envoie aussi le nb de portions
-      const items = selectedList.map((f) => ({
-        foodId: f.id,
-        grams: f.grams, // ✅ par portion
-      }));
+    const payload = {
+      userId: user.uid,
+      name: `${mealType} du ${new Date().toLocaleDateString()}`,
+      portions: nbRepas,
+      items: selectedList.map(f => ({
+        id: f.id,
+        nom: f.nom,
+        typeName: f.typeName,
+        caloriesPer100g: f.caloriesPer100g,
+        grams: f.grams, // par portion
+      })),
+    };
 
-      const body = {
-        date: today(), // ou choisis une date depuis l’UI
-        mealType, // "dejeuner" | "diner"
-        items,
-        servings: nbRepas, // optionnel (si non géré côté API, retire-le)
-      };
+    const res = await fetch("/api/meals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || "Erreur d'enregistrement");
 
-      const res = await fetch(`${apiBaseUrl}/api/meals`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      });
+    alert("Repas enregistré ✅");
+  } catch (e: any) {
+    alert(e.message || "Erreur");
+  }
+}
 
-      const data = await res.json();
-      if (!res.ok)
-        throw new Error(data?.error || "Erreur lors de l'enregistrement");
-      alert("🍽️ Repas enregistré !");
-      // Option: reset sélection ou rediriger
-      // setSelected({});
-    } catch (e: any) {
-      alert(e.message || "Erreur serveur");
-    }
-  };
+
+  
 
   return (
     <RequireAuth>
@@ -488,17 +475,27 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
               </div>
             </div>
 
-            <button
-              disabled={mealTargetKcal <= 0 || selectedList.length === 0}
-              className={`w-full py-3 mb-20 rounded-xl font-semibold text-white ${
-                mealTargetKcal <= 0 || selectedList.length === 0
-                  ? "bg-gray-600 cursor-not-allowed"
-                  : "bg-green-600 hover:bg-green-700 active:scale-95 transition"
-              }`}
-              onClick={saveMeal}
-            >
-              ✅ Valider mon repas
-            </button>
+<div className="grid grid-cols-1 gap-2">
+  <button
+    disabled={mealTargetKcal <= 0 || selectedList.length === 0}
+    className={`w-full py-3 rounded-xl font-semibold text-white ${
+      mealTargetKcal <= 0 || selectedList.length === 0
+        ? "bg-gray-600 cursor-not-allowed"
+        : "bg-green-600 hover:bg-green-700"
+    }`}
+    onClick={saveMeal}
+  >
+    💾 Enregistrer ce repas
+  </button>
+
+  <a
+    href="/meals"
+    className="block w-full text-center py-3 mb-20 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700"
+  >
+    📚 Mes repas enregistrés
+  </a>
+</div>
+
           </div>
         </div>
       </div>

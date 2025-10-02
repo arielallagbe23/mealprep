@@ -31,7 +31,13 @@ export default function LoginPage() {
       if (!res.ok) throw new Error(data?.error || data?.message || "Erreur");
 
       // garde un profil léger
-      login({ email: data.user.email, nickname: data.user.nickname });
+// garde un profil léger
+login({
+  uid: data.uid,         // 🔑 le vrai identifiant retourné par ton API / Firebase
+  email: data.email || "",
+  nickname: data.displayName || undefined,
+});
+
       router.replace("/accueil");
     } catch (err: any) {
       setMsg(err.message);
