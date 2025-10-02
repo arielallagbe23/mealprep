@@ -25,6 +25,14 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   );
   const [nbRepas, setNbRepas] = useState(1);
   const [breakfastKcal, setBreakfastKcal] = useState<string>("500"); // kcal du petit-déj saisi
+  const today = () => new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+  async function getAuthToken(user: any) {
+    // Essaie Firebase Auth (getIdToken), sinon un token déjà stocké dans ton useAuth
+    if (user?.getIdToken) return await user.getIdToken();
+    if (user?.token) return user.token;
+    return null;
+  }
 
   // --- Fetch aliments ---
   useEffect(() => {
@@ -204,6 +212,46 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
         {Math.abs(diff)})
       </span>
     );
+  };
+
+  // fonction d’enregistrement (mets-la dans le composant)
+  const saveMeal = async () => {
+    try {
+      const token = await getAuthToken(user);
+      if (!token) throw new Error("Non authentifié");
+
+      // items sous la forme attendue par l’API: [{ foodId, grams }]
+      // Ici on enregistre par portion, et on envoie aussi le nb de portions
+      const items = selectedList.map((f) => ({
+        foodId: f.id,
+        grams: f.grams, // ✅ par portion
+      }));
+
+      const body = {
+        date: today(), // ou choisis une date depuis l’UI
+        mealType, // "dejeuner" | "diner"
+        items,
+        servings: nbRepas, // optionnel (si non géré côté API, retire-le)
+      };
+
+      const res = await fetch(`${apiBaseUrl}/api/meals`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data?.error || "Erreur lors de l'enregistrement");
+      alert("🍽️ Repas enregistré !");
+      // Option: reset sélection ou rediriger
+      // setSelected({});
+    } catch (e: any) {
+      alert(e.message || "Erreur serveur");
+    }
   };
 
   return (
@@ -447,9 +495,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
                   ? "bg-gray-600 cursor-not-allowed"
                   : "bg-green-600 hover:bg-green-700 active:scale-95 transition"
               }`}
-              onClick={() => {
-                alert(`Repas validé pour ${nbRepas} portion(s) !`);
-              }}
+              onClick={saveMeal}
             >
               ✅ Valider mon repas
             </button>
