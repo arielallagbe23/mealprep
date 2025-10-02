@@ -24,6 +24,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     {}
   );
   const [nbRepas, setNbRepas] = useState(1);
+  const [breakfastKcal, setBreakfastKcal] = useState<string>("500"); // kcal du petit-déj saisi
 
   // --- Fetch aliments ---
   useEffect(() => {
@@ -49,11 +50,12 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
 
   // --- Cible du repas ---
   const mealTargetKcal = useMemo(() => {
-    const base = Number(dailyKcal);
-    if (!base || base <= 0) return 0;
-    const cut = Math.max(0, base - 500);
-    return Math.round(cut * (mealType === "dejeuner" ? 0.6 : 0.4));
-  }, [dailyKcal, mealType]);
+    const base = Number(dailyKcal) || 0;
+    const bf = Number(breakfastKcal) || 0; // petit-déj saisi
+    const remaining = Math.max(0, base - bf); // calories restantes sur la journée
+    const ratio = mealType === "dejeuner" ? 0.6 : 0.4; // 60% midi / 40% soir (inchangé)
+    return Math.round(remaining * ratio);
+  }, [dailyKcal, breakfastKcal, mealType]);
 
   // --- Groupes par type ---
   const grouped = useMemo(() => {
@@ -229,6 +231,30 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
                   className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </label>
+
+              <label className="text-sm text-gray-700 dark:text-gray-300">
+                Petit déjeuner (kcal)
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  placeholder="ex: 300"
+                  value={breakfastKcal}
+                  onChange={(e) => setBreakfastKcal(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </label>
+
+              <span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700">
+                Restant après petit-déj :{" "}
+                <b>
+                  {Math.max(
+                    0,
+                    (Number(dailyKcal) || 0) - (Number(breakfastKcal) || 0)
+                  )}
+                </b>{" "}
+                kcal
+              </span>
 
               <div className="flex gap-2">
                 <button
