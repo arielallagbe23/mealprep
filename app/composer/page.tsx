@@ -207,39 +207,38 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   };
 
   async function saveMeal() {
-  try {
-    if (!user?.uid) throw new Error("Utilisateur non connecté");
-    if (selectedList.length === 0) throw new Error("Aucun aliment sélectionné");
+    try {
+      const userId = user?.uid || user?.email; // ✅ fallback
+      if (!userId) throw new Error("Utilisateur non connecté");
+      if (selectedList.length === 0)
+        throw new Error("Aucun aliment sélectionné");
 
-    const payload = {
-      userId: user.uid,
-      name: `${mealType} du ${new Date().toLocaleDateString()}`,
-      portions: nbRepas,
-      items: selectedList.map(f => ({
-        id: f.id,
-        nom: f.nom,
-        typeName: f.typeName,
-        caloriesPer100g: f.caloriesPer100g,
-        grams: f.grams, // par portion
-      })),
-    };
+      const payload = {
+        userId, // ✅ toujours défini
+        name: `${mealType} du ${new Date().toLocaleDateString()}`,
+        portions: nbRepas,
+        items: selectedList.map((f) => ({
+          id: f.id,
+          nom: f.nom,
+          typeName: f.typeName,
+          caloriesPer100g: f.caloriesPer100g,
+          grams: f.grams,
+        })),
+      };
 
-    const res = await fetch("/api/meals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || "Erreur d'enregistrement");
+      const res = await fetch("/api/meals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Erreur d'enregistrement");
 
-    alert("Repas enregistré ✅");
-  } catch (e: any) {
-    alert(e.message || "Erreur");
+      alert("Repas enregistré ✅");
+    } catch (e: any) {
+      alert(e.message || "Erreur");
+    }
   }
-}
-
-
-  
 
   return (
     <RequireAuth>
@@ -475,27 +474,26 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
               </div>
             </div>
 
-<div className="grid grid-cols-1 gap-2">
-  <button
-    disabled={mealTargetKcal <= 0 || selectedList.length === 0}
-    className={`w-full py-3 rounded-xl font-semibold text-white ${
-      mealTargetKcal <= 0 || selectedList.length === 0
-        ? "bg-gray-600 cursor-not-allowed"
-        : "bg-green-600 hover:bg-green-700"
-    }`}
-    onClick={saveMeal}
-  >
-    💾 Enregistrer ce repas
-  </button>
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                disabled={mealTargetKcal <= 0 || selectedList.length === 0}
+                className={`w-full py-3 rounded-xl font-semibold text-white ${
+                  mealTargetKcal <= 0 || selectedList.length === 0
+                    ? "bg-gray-600 cursor-not-allowed"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
+                onClick={saveMeal}
+              >
+                💾 Enregistrer ce repas
+              </button>
 
-  <a
-    href="/meals"
-    className="block w-full text-center py-3 mb-20 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700"
-  >
-    📚 Mes repas enregistrés
-  </a>
-</div>
-
+              <a
+                href="/meals"
+                className="block w-full text-center py-3 mb-20 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700"
+              >
+                📚 Mes repas enregistrés
+              </a>
+            </div>
           </div>
         </div>
       </div>
