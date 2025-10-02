@@ -19,9 +19,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [dailyKcal, setDailyKcal] = useState(""); // J (kcal/jour)
-  const [mealType, setMealType] = useState<"petitdej" | "dejeuner" | "diner">(
-    "dejeuner"
-  );
+  const [mealType, setMealType] = useState<"dejeuner" | "diner">("dejeuner");
   const [selected, setSelected] = useState<Record<string, { grams: number }>>(
     {}
   );
@@ -53,12 +51,8 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   const mealTargetKcal = useMemo(() => {
     const base = Number(dailyKcal);
     if (!base || base <= 0) return 0;
-
-    if (mealType === "petitdej") return Math.round(base * 0.2);
-    if (mealType === "dejeuner") return Math.round(base * 0.5);
-    if (mealType === "diner") return Math.round(base * 0.3);
-
-    return 0;
+    const cut = Math.max(0, base - 500);
+    return Math.round(cut * (mealType === "dejeuner" ? 0.6 : 0.4));
   }, [dailyKcal, mealType]);
 
   // --- Groupes par type ---
@@ -239,18 +233,6 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setMealType("petitdej")}
-                  className={`flex-1 py-3 rounded-lg font-semibold text-sm md:text-base ${
-                    mealType === "petitdej"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                  }`}
-                >
-                  Petit-déjeuner (20%)
-                </button>
-
-                <button
-                  type="button"
                   onClick={() => setMealType("dejeuner")}
                   className={`flex-1 py-3 rounded-lg font-semibold text-sm md:text-base ${
                     mealType === "dejeuner"
@@ -258,9 +240,8 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
                       : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                   }`}
                 >
-                  Déjeuner (50%)
+                  Déjeuner (60%)
                 </button>
-
                 <button
                   type="button"
                   onClick={() => setMealType("diner")}
@@ -270,7 +251,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
                       : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                   }`}
                 >
-                  Dîner (30%)
+                  Dîner (40%)
                 </button>
               </div>
             </div>
