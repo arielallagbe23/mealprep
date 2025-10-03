@@ -8,9 +8,9 @@ import BackButton from "@/components/BackButton";
 
 // Ratios cibles
 const RATIOS: Record<string, number> = {
-  Féculents: 0.25,
+  Féculents: 0.3,
   Protéines: 0.4,
-  Légumes: 0.3,
+  Légumes: 0.25,
   Sides: 0.05,
 };
 
@@ -307,7 +307,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
             {/* Input + boutons repas */}
 
             <BackButton
-              label="← Retour"
+              label="Retour"
               fallbackHref="/accueil"
               className="mb-3 w-fit"
             />

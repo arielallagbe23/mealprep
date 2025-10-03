@@ -160,20 +160,39 @@ export default function MealsPage() {
                     </div>
                   </label>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <span className="text-sm text-gray-300">Portions</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={portions[m.id] ?? 1}
-                      onChange={(e) =>
-                        setPortions((s) => ({
-                          ...s,
-                          [m.id]: Math.max(1, Number(e.target.value) || 1),
-                        }))
-                      }
-                      className="w-20 px-2 py-1 rounded bg-gray-900 border border-gray-700"
-                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPortions((s) => ({
+                            ...s,
+                            [m.id]: Math.max(1, (s[m.id] ?? 1) - 1),
+                          }))
+                        }
+                        className="px-3 py-1 rounded bg-rose-600 text-white hover:bg-rose-700 font-bold active:scale-95 transition"
+                      >
+                        –
+                      </button>
+
+                      <span className="w-10 text-center">
+                        {portions[m.id] ?? 1}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPortions((s) => ({
+                            ...s,
+                            [m.id]: (s[m.id] ?? 1) + 1,
+                          }))
+                        }
+                        className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 font-bold active:scale-95 transition"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 </div>
 
