@@ -275,7 +275,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
             {/* Input + boutons repas */}
 
             <BackButton
-              label="← Retour"
+              label="Retour"
               fallbackHref="/accueil"
               className="mb-3 w-fit"
             />

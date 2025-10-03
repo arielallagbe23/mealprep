@@ -107,7 +107,7 @@ export default function MealsPage() {
     <RequireAuth>
       <div className="min-h-screen bg-gray-900 text-white p-6 max-w-xl mx-auto">
         <BackButton
-          label="← Retour"
+          label="Retour"
           fallbackHref="/accueil"
           className="mb-3 w-fit"
         />

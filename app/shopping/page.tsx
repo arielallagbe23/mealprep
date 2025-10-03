@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/RequireAuth";
 import BackButton from "@/components/BackButton";
 
-
 export default function ShoppingPage() {
   return (
     <Suspense fallback={<div className="p-6 text-white">Chargement…</div>}>
@@ -35,7 +34,8 @@ function ShoppingPageInner() {
   }, [sp, initialIds]);
 
   const [mealIds, setMealIds] = useState<string[]>(initialIds);
-  const [portionsByMeal, setPortionsByMeal] = useState<Record<string, number>>(initialPortions);
+  const [portionsByMeal, setPortionsByMeal] =
+    useState<Record<string, number>>(initialPortions);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -67,6 +67,13 @@ function ShoppingPageInner() {
   return (
     <RequireAuth>
       <div className="min-h-screen bg-gray-900 text-white p-6 max-w-xl mx-auto">
+
+        <BackButton
+          label="Retour"
+          fallbackHref="/accueil"
+          className="mb-3 w-fit"
+        />
+        
         <h1 className="text-2xl font-bold mb-4">🛒 Liste de courses</h1>
 
         {loading && <p className="text-gray-400">Chargement...</p>}
