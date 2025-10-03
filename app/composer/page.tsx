@@ -229,10 +229,43 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
       const me = await fetchCurrentUser(); // -> { uid, email, nickname }
       const userId = me.uid;
 
+      // ---- NOM AUTOMATIQUE ----------------------------------
+      const prettyType = mealType === "dejeuner" ? "Déjeuner" : "Dîner";
+
+      // helper pour normaliser les types (accents, majuscules/minuscules)
+      const norm = (s?: string) =>
+        (s || "")
+          .normalize("NFD")
+          .replace(/\p{Diacritic}/gu, "")
+          .toLowerCase();
+
+      const firstByType = (label: string) =>
+        selectedList.find((x) => norm(x.typeName) === norm(label))?.nom;
+
+      // Chercher un féculent
+      const carb =
+        firstByType("Féculents") ||
+        firstByType("Feculents") ||
+        selectedList.find((x) => /feculent/i.test(norm(x.typeName)))?.nom ||
+        selectedList[0]?.nom ||
+        "féculent";
+
+      // Chercher une protéine
+      const protein =
+        firstByType("Protéines") ||
+        firstByType("Proteines") ||
+        selectedList.find((x) => /proteine/i.test(norm(x.typeName)))?.nom ||
+        selectedList.find((x) => /viande|poisson|oeuf/i.test(norm(x.typeName)))
+          ?.nom ||
+        "protéine";
+
+      const autoName = `${prettyType} — ${carb} + ${protein}`;
+      // --------------------------------------------------------
+
       // 2) Construire le payload d’enregistrement
       const payload = {
         userId,
-        name: `${mealType} du ${new Date().toLocaleDateString()}`,
+        name: autoName, // ⬅️ utilise ton nom généré
         portions: nbRepas,
         items: selectedList.map((f) => ({
           id: f.id,
@@ -275,7 +308,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
             {/* Input + boutons repas */}
 
             <BackButton
-              label="Retour"
+              label="← Retour"
               fallbackHref="/accueil"
               className="mb-3 w-fit"
             />

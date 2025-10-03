@@ -15,6 +15,7 @@ export default function MealsPage() {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Record<string, boolean>>({});
 
   // sélection multi + portions à la volée
   const [checked, setChecked] = useState<Record<string, boolean>>({});
@@ -103,6 +104,27 @@ export default function MealsPage() {
     );
   }
 
+  async function onDelete(id: string) {
+    if (!confirm("Supprimer ce repas ?")) return;
+    setDeleting((s) => ({ ...s, [id]: true }));
+
+    try {
+      const res = await fetch(`/api/meals/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Suppression impossible");
+      // retire localement
+      setMeals((ms) => ms.filter((m) => m.id !== id));
+      setChecked(({ [id]: _omit, ...rest }) => rest);
+      setPortions(({ [id]: _omit2, ...rest }) => rest);
+    } catch (e: any) {
+      alert(e.message || "Erreur");
+    } finally {
+      setDeleting((s) => {
+        const { [id]: _x, ...rest } = s;
+        return rest;
+      });
+    }
+  }
+
   return (
     <RequireAuth>
       <div className="min-h-screen bg-gray-900 text-white p-6 max-w-xl mx-auto">
@@ -135,6 +157,15 @@ export default function MealsPage() {
                       <div className="text-sm text-gray-300">
                         Portions par défaut : {m.portions}
                       </div>
+                      <button
+                        onClick={() => onDelete(m.id)}
+                        disabled={!!deleting[m.id]}
+                        className={`ml-2 px-3 py-2 rounded bg-rose-600 hover:bg-rose-700 text-sm ${
+                          deleting[m.id] ? "opacity-60 cursor-not-allowed" : ""
+                        }`}
+                      >
+                        🗑️ Supprimer
+                      </button>
                     </div>
                   </label>
 
