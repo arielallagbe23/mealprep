@@ -157,15 +157,6 @@ export default function MealsPage() {
                       <div className="text-sm text-gray-300">
                         Portions par défaut : {m.portions}
                       </div>
-                      <button
-                        onClick={() => onDelete(m.id)}
-                        disabled={!!deleting[m.id]}
-                        className={`ml-2 px-3 py-2 rounded bg-rose-600 hover:bg-rose-700 text-sm ${
-                          deleting[m.id] ? "opacity-60 cursor-not-allowed" : ""
-                        }`}
-                      >
-                        🗑️ Supprimer
-                      </button>
                     </div>
                   </label>
 
@@ -197,6 +188,15 @@ export default function MealsPage() {
                   >
                     🛒 Liste (ce repas)
                   </a>
+                  <button
+                    onClick={() => onDelete(m.id)}
+                    disabled={!!deleting[m.id]}
+                    className={`ml-2 px-3 py-2 rounded bg-rose-600 hover:bg-rose-700 text-sm ${
+                      deleting[m.id] ? "opacity-60 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    🗑️ Supprimer
+                  </button>
                 </div>
               </li>
             ))}

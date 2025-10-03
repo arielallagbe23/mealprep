@@ -27,6 +27,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   );
   const [nbRepas, setNbRepas] = useState(1);
   const [breakfastKcal, setBreakfastKcal] = useState<string>("500"); // kcal du petit-déj saisi
+  const [success, setSuccess] = useState<string | null>(null);
 
   async function fetchCurrentUser() {
     const res = await fetch("/api/users/me", { credentials: "include" });
@@ -286,16 +287,14 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Erreur d'enregistrement");
 
-      // 4) Option UX : rediriger direct vers la liste de courses
-      // on passe l'id du repas et le nombre de portions pour calcul
-      const mealId = data.id as string;
-      router.push(
-        `/shopping?ids=${encodeURIComponent(mealId)}&p_${mealId}=${nbRepas}`
-      );
       // Si tu préfères rester sur place :
       // alert("Repas enregistré ✅");
+      setSuccess("Repas enregistré ✅");
+      setErr(""); // optionnel: effacer une erreur précédente
     } catch (e: any) {
       alert(e.message || "Erreur");
+      setErr(e.message || "Erreur");
+      setSuccess(null);
     }
   }
 
@@ -558,6 +557,11 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
               >
                 📚 Mes repas enregistrés
               </a>
+              {success && (
+                <div className="mb-3 rounded-lg border border-emerald-700 bg-emerald-900/40 text-emerald-200 px-3 py-2">
+                  {success}
+                </div>
+              )}
             </div>
           </div>
         </div>
