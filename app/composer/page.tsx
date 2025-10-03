@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/useAuth";
+import { useRouter } from "next/navigation";
 import RequireAuth from "@/components/RequireAuth";
 
 // Ratios cibles
