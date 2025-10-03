@@ -551,17 +551,18 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
                 💾 Enregistrer ce repas
               </button>
 
+              {success && (
+                <div className="mb-3 rounded-lg border border-emerald-700 bg-emerald-900/40 text-emerald-200 px-3 py-2">
+                  {success}
+                </div>
+              )}
+
               <a
                 href="/meals"
                 className="block w-full text-center py-3 mb-20 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700"
               >
                 📚 Mes repas enregistrés
               </a>
-              {success && (
-                <div className="mb-3 rounded-lg border border-emerald-700 bg-emerald-900/40 text-emerald-200 px-3 py-2">
-                  {success}
-                </div>
-              )}
             </div>
           </div>
         </div>
