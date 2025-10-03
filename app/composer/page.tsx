@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import RequireAuth from "@/components/RequireAuth";
 import BackButton from "@/components/BackButton";
 
-// Ratios cibles
+// Ratios cibles (en % des calories du repas)
 const RATIOS: Record<string, number> = {
-  Féculents: 0.3,
-  Protéines: 0.4,
-  Légumes: 0.25,
-  Sides: 0.05,
+  Féculents: 0.25,   // énergie contrôlée
+  Protéines: 0.40,   // priorité absolue
+  Légumes: 0.25,     // fibres + satiété
+  Sides: 0.10,       // bonnes graisses
 };
+
 
 export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   const { user } = useAuth();
