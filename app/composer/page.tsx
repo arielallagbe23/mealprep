@@ -27,6 +27,16 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   const [nbRepas, setNbRepas] = useState(1);
   const [breakfastKcal, setBreakfastKcal] = useState<string>("500"); // kcal du petit-déj saisi
 
+  async function fetchCurrentUser() {
+    const res = await fetch("/api/users/me", { credentials: "include" });
+    if (!res.ok) throw new Error("Impossible de récupérer l'utilisateur");
+    return res.json() as Promise<{
+      uid: string;
+      email: string;
+      nickname?: string | null;
+    }>;
+  }
+
   // --- Fetch aliments ---
   useEffect(() => {
     let alive = true;
@@ -207,15 +217,20 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     );
   };
 
+  const router = useRouter();
+
   async function saveMeal() {
     try {
-      const userId = user?.uid || user?.email; // ✅ fallback
-      if (!userId) throw new Error("Utilisateur non connecté");
       if (selectedList.length === 0)
         throw new Error("Aucun aliment sélectionné");
 
+      // 1) Récupérer l'utilisateur via le cookie (serveur)
+      const me = await fetchCurrentUser(); // -> { uid, email, nickname }
+      const userId = me.uid;
+
+      // 2) Construire le payload d’enregistrement
       const payload = {
-        userId, // ✅ toujours défini
+        userId,
         name: `${mealType} du ${new Date().toLocaleDateString()}`,
         portions: nbRepas,
         items: selectedList.map((f) => ({
@@ -223,19 +238,28 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
           nom: f.nom,
           typeName: f.typeName,
           caloriesPer100g: f.caloriesPer100g,
-          grams: f.grams,
+          grams: f.grams, // par portion
         })),
       };
 
+      // 3) Enregistrer le repas
       const res = await fetch("/api/meals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // (optionnel ici, mais cohérent)
         body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Erreur d'enregistrement");
 
-      alert("Repas enregistré ✅");
+      // 4) Option UX : rediriger direct vers la liste de courses
+      // on passe l'id du repas et le nombre de portions pour calcul
+      const mealId = data.id as string;
+      router.push(
+        `/shopping?ids=${encodeURIComponent(mealId)}&p_${mealId}=${nbRepas}`
+      );
+      // Si tu préfères rester sur place :
+      // alert("Repas enregistré ✅");
     } catch (e: any) {
       alert(e.message || "Erreur");
     }
