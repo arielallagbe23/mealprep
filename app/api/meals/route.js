@@ -6,7 +6,6 @@ import { adminDb } from "@/lib/firebaseAdmin";
 // GET /api/meals?userId=...
 export async function GET(req) {
   try {
-    // En prod, Next peut fournir une URL relative → donner une base
     const { searchParams } = new URL(
       req.url,
       process.env.NEXT_PUBLIC_APP_URL || "http://localhost"
@@ -16,18 +15,29 @@ export async function GET(req) {
       return new Response(JSON.stringify({ error: "userId requis" }), { status: 400 });
     }
 
-    const snap = await adminDb
-      .collection("meals")
-      .where("userId", "==", userId)
-      .orderBy("createdAt", "desc") // nécessite un index composite userId ASC, createdAt DESC
-      .get();
+    let snap;
+    try {
+      snap = await adminDb
+        .collection("meals")
+        .where("userId", "==", userId)
+        .orderBy("createdAt", "desc")
+        .get();
+    } catch (err) {
+      // ⚠️ Si l’index Firestore n’existe pas encore → fallback sans orderBy
+      console.warn("⚠️ Firestore index manquant, fallback sans tri");
+      snap = await adminDb
+        .collection("meals")
+        .where("userId", "==", userId)
+        .get();
+    }
 
-    // Serializer le Timestamp Firestore -> ISO string
     const meals = snap.docs.map(d => {
       const data = d.data();
-      const createdAt =
-        data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt || null;
-      return { id: d.id, ...data, createdAt };
+      return {
+        id: d.id,
+        ...data,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : null,
+      };
     });
 
     return new Response(JSON.stringify(meals), { status: 200 });
@@ -50,7 +60,6 @@ export async function POST(req) {
       );
     }
 
-    // On stocke les grammes PAR PORTION (plus simple pour multiplier ensuite)
     const cleanItems = items.map(it => ({
       foodId: it.id || it.foodId,
       nom: it.nom,
@@ -64,10 +73,9 @@ export async function POST(req) {
       name,
       portions: Number(portions) || 1,
       items: cleanItems,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(), // ✅ timestamp serveur
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // On évite de renvoyer le doc avec un FieldValue non sérialisable
     return new Response(JSON.stringify({ ok: true }), { status: 201 });
   } catch (e) {
     console.error("MEALS CREATE ERROR", e);
