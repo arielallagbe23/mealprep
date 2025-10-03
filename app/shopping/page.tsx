@@ -4,6 +4,8 @@ export const dynamic = "force-dynamic";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/RequireAuth";
+import BackButton from "@/components/BackButton";
+
 
 export default function ShoppingPage() {
   return (

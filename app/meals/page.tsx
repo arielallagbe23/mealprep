@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import RequireAuth from "@/components/RequireAuth";
+import BackButton from "@/components/BackButton";
 
 type Meal = {
   id: string;
@@ -35,11 +36,15 @@ export default function MealsPage() {
         setMe({ uid: dMe.uid, email: dMe.email });
 
         // 2) Charger ses repas
-        const rMeals = await fetch(`/api/meals?userId=${encodeURIComponent(dMe.uid)}`, {
-          credentials: "include",
-        });
+        const rMeals = await fetch(
+          `/api/meals?userId=${encodeURIComponent(dMe.uid)}`,
+          {
+            credentials: "include",
+          }
+        );
         const dMeals = await rMeals.json();
-        if (!rMeals.ok) throw new Error(dMeals?.error || "Erreur chargement repas");
+        if (!rMeals.ok)
+          throw new Error(dMeals?.error || "Erreur chargement repas");
         if (!alive) return;
 
         const list: Meal[] = Array.isArray(dMeals) ? dMeals : [];
@@ -101,6 +106,12 @@ export default function MealsPage() {
   return (
     <RequireAuth>
       <div className="min-h-screen bg-gray-900 text-white p-6 max-w-xl mx-auto">
+        <BackButton
+          label="← Retour"
+          fallbackHref="/accueil"
+          className="mb-3 w-fit"
+        />
+
         <h1 className="text-2xl font-bold mb-4">📚 Mes repas</h1>
 
         {meals.length === 0 ? (

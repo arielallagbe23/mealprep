@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/useAuth";
 import { useRouter } from "next/navigation";
 import RequireAuth from "@/components/RequireAuth";
+import BackButton from "@/components/BackButton";
 
 // Ratios cibles
 const RATIOS: Record<string, number> = {
@@ -272,6 +273,12 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
           {/* Bloc paramètres */}
           <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-4 shadow-sm">
             {/* Input + boutons repas */}
+
+            <BackButton
+              label="← Retour"
+              fallbackHref="/accueil"
+              className="mb-3 w-fit"
+            />
 
             <h1 className="text-xl md:text-2xl font-bold text-center text-white">
               🍽️ Composer un repas
