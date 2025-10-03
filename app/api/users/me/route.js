@@ -24,7 +24,7 @@ export async function GET(req) {
     }
 
     if (!JWT_SECRET) {
-      throw new Error("JWT_SECRET non défini");
+      throw new Error("JWT_SECRET pas du tout défini");
     }
 
     /** @type {import('jsonwebtoken').JwtPayload & MPCFields} */
