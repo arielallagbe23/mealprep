@@ -14,6 +14,11 @@ const RATIOS: Record<string, number> = {
   Sides: 0.25, // bonnes graisses
 };
 
+const CAPS_GRAMS: Record<string, { min?: number; max?: number }> = {
+  Légumes: { min: 200, max: 450 },
+  Sides: { min: 0, max: 25 },
+};
+
 export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   const { user } = useAuth();
 
@@ -129,6 +134,86 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     });
   };
   const round5 = (g: number) => Math.max(0, Math.round(g / 5) * 5);
+  const findFood = (id: string) => foods.find((x) => x.id === id);
+  const typeOf = (id: string) => findFood(id)?.typeName || "Autres";
+  const kcalPerGram = (id: string) =>
+    (Number(findFood(id)?.caloriesPer100g) || 0) / 100;
+  const computeTotalK = (data: Record<string, { grams: number }>) =>
+    Math.round(
+      Object.entries(data).reduce((sum, [id, v]) => {
+        return sum + v.grams * kcalPerGram(id);
+      }, 0)
+    );
+
+  const groupByType = (
+    data: Record<string, { grams: number }>
+  ): Record<string, { id: string; grams: number }[]> =>
+    Object.entries(data).reduce((acc, [id, v]) => {
+      const type = typeOf(id);
+      (acc[type] ||= []).push({ id, grams: v.grams });
+      return acc;
+    }, {} as Record<string, { id: string; grams: number }[]>);
+
+  const applyTypeCaps = (data: Record<string, { grams: number }>) => {
+    const byType = groupByType(data);
+    Object.entries(byType).forEach(([type, items]) => {
+      const cap = CAPS_GRAMS[type];
+      if (!cap || items.length === 0) return;
+      const totalG = items.reduce((s, it) => s + it.grams, 0);
+      let targetTotalG = totalG;
+      if (cap.min != null) targetTotalG = Math.max(targetTotalG, cap.min);
+      if (cap.max != null) targetTotalG = Math.min(targetTotalG, cap.max);
+      const factor = targetTotalG / (totalG || 1);
+      items.forEach((it) => {
+        data[it.id] = { grams: round5(it.grams * factor) };
+      });
+    });
+  };
+
+  const adjustTowardTarget = (
+    data: Record<string, { grams: number }>,
+    minK: number,
+    maxK: number
+  ) => {
+    let totalK = computeTotalK(data);
+    if (totalK >= minK && totalK <= maxK) return;
+
+    const totals = groupByType(data);
+    const ids = Object.keys(data).sort(
+      (a, b) => kcalPerGram(b) - kcalPerGram(a)
+    );
+    const step = totalK > maxK ? -5 : 5;
+    const maxIters = 300;
+
+    const canApplyDelta = (id: string, delta: number) => {
+      const nextG = (data[id]?.grams || 0) + delta;
+      if (nextG < 0) return false;
+      const type = typeOf(id);
+      const cap = CAPS_GRAMS[type];
+      if (!cap) return true;
+      const nextTotal = (totals[type]?.reduce((s, it) => s + it.grams, 0) || 0) + delta;
+      if (cap.min != null && nextTotal < cap.min) return false;
+      if (cap.max != null && nextTotal > cap.max) return false;
+      return true;
+    };
+
+    for (let i = 0; i < maxIters; i += 1) {
+      let moved = false;
+      for (const id of ids) {
+        if (!canApplyDelta(id, step)) continue;
+        data[id] = { grams: round5(data[id].grams + step) };
+        const type = typeOf(id);
+        const list = totals[type] || [];
+        const idx = list.findIndex((it) => it.id === id);
+        if (idx >= 0) list[idx] = { id, grams: data[id].grams };
+        moved = true;
+        break;
+      }
+      if (!moved) break;
+      totalK = computeTotalK(data);
+      if (totalK >= minK && totalK <= maxK) break;
+    }
+  };
 
   // ⚡ AUTO-QUANTITÉS
   const autoQuantities = () => {
@@ -151,14 +236,15 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
 
     const selByType: Record<string, any[]> = {};
     Object.keys(current).forEach((id) => {
-      const f = foods.find((x) => x.id === id);
+      const f = findFood(id);
       if (!f) return;
       const type = f.typeName || "Autres";
       (selByType[type] ||= []).push(f);
     });
 
     const next: Record<string, { grams: number }> = {};
-    const kcalPerGram = (f: any) => (Number(f.caloriesPer100g) || 0) / 100;
+    const kcalPerGramFood = (f: any) =>
+      (Number(f.caloriesPer100g) || 0) / 100;
 
     Object.entries(RATIOS).forEach(([type]) => {
       const items = selByType[type] || [];
@@ -167,64 +253,29 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
 
       const perItemK = targetK / items.length;
       for (const f of items) {
-        const kpg = kcalPerGram(f) || 0.01;
+        const kpg = kcalPerGramFood(f) || 0.01;
         let grams = perItemK / kpg;
         grams = round5(grams);
         next[f.id] = { grams };
       }
     });
 
-    // Ajustement global ±5%
-    const afterList = Object.entries(next).map(([id, v]) => {
-      const f = foods.find((x) => x.id === id);
-      const grams = v.grams;
-      const kcal = Math.round(
-        grams * ((Number(f?.caloriesPer100g) || 0) / 100)
-      );
-      return { id, grams, kcal, f };
-    });
-    const totalK = afterList.reduce((s, x) => s + x.kcal, 0);
-    const tolerance = mealTargetKcal * 0.05;
-    const minK = mealTargetKcal - tolerance;
-    const maxK = mealTargetKcal + tolerance;
-
-    if (totalK < minK || totalK > maxK) {
-      const factor = mealTargetKcal / (totalK || 1);
-      for (const it of afterList) {
-        let g = round5(it.grams * factor);
-        next[it.id] = { grams: g };
-      }
+    // Ajustement global pour viser la cible
+    const initialTotal = computeTotalK(next);
+    if (initialTotal > 0) {
+      const factor = mealTargetKcal / initialTotal;
+      Object.keys(next).forEach((id) => {
+        next[id] = { grams: round5(next[id].grams * factor) };
+      });
     }
 
-    // 🔽 SÉCURITÉ : toujours rester SOUS la cible kcal
-    const finalList = Object.entries(next).map(([id, v]) => {
-      const f = foods.find((x) => x.id === id);
-      const kcal = Math.round(
-        v.grams * ((Number(f?.caloriesPer100g) || 0) / 100)
-      );
-      return { id, grams: v.grams, kcal, type: f?.typeName };
-    });
+    // 🔒 Application des CAPS_GRAMS par type (total du type, pas par item)
+    applyTypeCaps(next);
 
-    let finalTotal = finalList.reduce((s, x) => s + x.kcal, 0);
-
-    // 👉 Si on dépasse, on réduit UNIQUEMENT les féculents
-    if (finalTotal > mealTargetKcal) {
-      const excess = finalTotal - mealTargetKcal;
-
-      const carbs = finalList.filter((x) => x.type === "Féculents");
-      if (carbs.length > 0) {
-        const kcalPerGramCarb =
-          carbs.reduce((s, c) => s + c.kcal, 0) /
-          carbs.reduce((s, c) => s + c.grams, 0);
-
-        const gramsToRemove = Math.ceil(excess / (kcalPerGramCarb || 1));
-
-        carbs.forEach((c) => {
-          const reduce = Math.min(c.grams, gramsToRemove);
-          next[c.id].grams = round5(c.grams - reduce);
-        });
-      }
-    }
+    // 🎯 Ajustement fin pour rester dans ±5% de la cible
+    const minK = mealTargetKcal * 0.95;
+    const maxK = mealTargetKcal * 1.05;
+    adjustTowardTarget(next, minK, maxK);
 
     setSelected(next);
   };
