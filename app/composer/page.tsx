@@ -8,12 +8,16 @@ import BackButton from "@/components/BackButton";
 
 // Ratios cibles (en % des calories du repas)
 const RATIOS: Record<string, number> = {
-  Féculents: 0.30,   // énergie contrôlée
-  Protéines: 0.45,   // priorité absolue
-  Légumes: 0.20,     // fibres + satiété
-  Sides: 0.05,       // bonnes graisses
+  Féculents: 0.35,
+  Protéines: 0.45,
+  Légumes: 0.05, // symbolique (évite les volumes absurdes)
+  Sides: 0.15, // graisses / sauces caloriques
 };
 
+const CAPS_GRAMS: Record<string, { min?: number; max?: number }> = {
+  Légumes: { min: 200, max: 450 },
+  Sides: { min: 0, max: 25 }, // par item, ou global si tu préfères
+};
 
 export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   const { user } = useAuth();
@@ -196,6 +200,22 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
         next[it.id] = { grams: g };
       }
     }
+
+    // 🔒 Application des CAPS_GRAMS (patch minimal)
+    Object.entries(next).forEach(([id, v]) => {
+      const f = foods.find((x) => x.id === id);
+      if (!f) return;
+
+      const type = f.typeName || "Autres";
+      const cap = CAPS_GRAMS[type];
+      if (!cap) return;
+
+      let g = v.grams;
+      if (cap.min != null) g = Math.max(g, cap.min);
+      if (cap.max != null) g = Math.min(g, cap.max);
+
+      next[id] = { grams: round5(g) };
+    });
 
     setSelected(next);
   };
