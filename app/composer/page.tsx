@@ -8,16 +8,12 @@ import BackButton from "@/components/BackButton";
 
 // Ratios cibles (en % des calories du repas)
 const RATIOS: Record<string, number> = {
-  Féculents: 0.35,
-  Protéines: 0.45,
-  Légumes: 0.05, // symbolique (évite les volumes absurdes)
-  Sides: 0.15, // graisses / sauces caloriques
+  Féculents: 0.30,   // énergie contrôlée
+  Protéines: 0.40,   // priorité absolue
+  Légumes: 0.10,     // fibres + satiété
+  Sides: 0.20,       // bonnes graisses
 };
 
-const CAPS_GRAMS: Record<string, { min?: number; max?: number }> = {
-  Légumes: { min: 200, max: 450 },
-  Sides: { min: 0, max: 25 }, // par item, ou global si tu préfères
-};
 
 export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   const { user } = useAuth();
@@ -200,150 +196,6 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
         next[it.id] = { grams: g };
       }
     }
-
-    // 🔒 Application des CAPS_GRAMS par type (évite le min/max par item)
-    const byType: Record<string, { id: string; grams: number; f: any }[]> = {};
-    Object.entries(next).forEach(([id, v]) => {
-      const f = foods.find((x) => x.id === id);
-      if (!f) return;
-      const type = f.typeName || "Autres";
-      (byType[type] ||= []).push({ id, grams: v.grams, f });
-    });
-
-    Object.entries(byType).forEach(([type, items]) => {
-      const cap = CAPS_GRAMS[type];
-      if (!cap || items.length === 0) return;
-
-      const totalG = items.reduce((s, it) => s + it.grams, 0);
-      let targetTotalG = totalG;
-      if (cap.min != null) targetTotalG = Math.max(targetTotalG, cap.min);
-      if (cap.max != null) targetTotalG = Math.min(targetTotalG, cap.max);
-
-      if (totalG <= 0) {
-        const per = round5(targetTotalG / items.length);
-        items.forEach((it) => {
-          next[it.id] = { grams: per };
-        });
-        return;
-      }
-
-      const factor = targetTotalG / totalG;
-      items.forEach((it) => {
-        next[it.id] = { grams: round5(it.grams * factor) };
-      });
-    });
-
-    // 🔧 Ajustement final pour rester dans ±5% de la cible
-    const computeTotalK = (data: Record<string, { grams: number }>) =>
-      Object.entries(data).reduce((sum, [id, v]) => {
-        const f = foods.find((x) => x.id === id);
-        if (!f) return sum;
-        const k = (Number(f.caloriesPer100g) || 0) / 100;
-        return sum + Math.round(v.grams * k);
-      }, 0);
-
-    const minKFinal = mealTargetKcal * 0.95;
-    const maxKFinal = mealTargetKcal * 1.05;
-    let finalTotalK = computeTotalK(next);
-
-    if (finalTotalK < minKFinal || finalTotalK > maxKFinal) {
-      const adjustableIds = Object.keys(next).filter((id) => {
-        const f = foods.find((x) => x.id === id);
-        if (!f) return false;
-        const type = f.typeName || "Autres";
-        return !CAPS_GRAMS[type];
-      });
-      const idsToAdjust =
-        adjustableIds.length > 0 ? adjustableIds : Object.keys(next);
-
-      const adjustableTotalK = idsToAdjust.reduce((sum, id) => {
-        const f = foods.find((x) => x.id === id);
-        if (!f) return sum;
-        const k = (Number(f.caloriesPer100g) || 0) / 100;
-        return sum + Math.round(next[id].grams * k);
-      }, 0);
-
-      if (adjustableTotalK > 0) {
-        const factor = mealTargetKcal / finalTotalK;
-        idsToAdjust.forEach((id) => {
-          next[id] = { grams: round5(next[id].grams * factor) };
-        });
-
-        // Re-apply caps if we had to adjust capped items
-        if (adjustableIds.length === 0) {
-          Object.entries(byType).forEach(([type, items]) => {
-            const cap = CAPS_GRAMS[type];
-            if (!cap || items.length === 0) return;
-            const totalG = items.reduce((s, it) => s + next[it.id].grams, 0);
-            let targetTotalG = totalG;
-            if (cap.min != null) targetTotalG = Math.max(targetTotalG, cap.min);
-            if (cap.max != null) targetTotalG = Math.min(targetTotalG, cap.max);
-            const total = totalG || 1;
-            const f = targetTotalG / total;
-            items.forEach((it) => {
-              next[it.id] = { grams: round5(next[it.id].grams * f) };
-            });
-          });
-        }
-      }
-    }
-
-    // 🎯 Micro-ajustements pour lisser l'arrondi (pas de 5g)
-    const kPerGram = (id: string) => {
-      const f = foods.find((x) => x.id === id);
-      return ((Number(f?.caloriesPer100g) || 0) / 100) || 0;
-    };
-    const typeOf = (id: string) => {
-      const f = foods.find((x) => x.id === id);
-      return f?.typeName || "Autres";
-    };
-    const typeTotals = () =>
-      Object.entries(next).reduce((acc, [id, v]) => {
-        const t = typeOf(id);
-        acc[t] = (acc[t] || 0) + v.grams;
-        return acc;
-      }, {} as Record<string, number>);
-
-    const canApplyDelta = (
-      id: string,
-      delta: number,
-      totals: Record<string, number>
-    ) => {
-      const nextG = (next[id]?.grams || 0) + delta;
-      if (nextG < 0) return false;
-      const type = typeOf(id);
-      const cap = CAPS_GRAMS[type];
-      if (!cap) return true;
-      const nextTotal = (totals[type] || 0) + delta;
-      if (cap.min != null && nextTotal < cap.min) return false;
-      if (cap.max != null && nextTotal > cap.max) return false;
-      return true;
-    };
-
-    const trySmooth = () => {
-      let diff = mealTargetKcal - computeTotalK(next);
-      if (Math.abs(diff) <= 10) return;
-
-      const totals = typeTotals();
-      const ids = Object.keys(next).sort((a, b) => kPerGram(b) - kPerGram(a));
-      const step = diff > 0 ? 5 : -5;
-
-      for (let i = 0; i < 20; i += 1) {
-        let moved = false;
-        for (const id of ids) {
-          if (!canApplyDelta(id, step, totals)) continue;
-          next[id] = { grams: round5(next[id].grams + step) };
-          totals[typeOf(id)] = (totals[typeOf(id)] || 0) + step;
-          moved = true;
-          break;
-        }
-        if (!moved) break;
-        diff = mealTargetKcal - computeTotalK(next);
-        if (Math.abs(diff) <= 10) break;
-      }
-    };
-
-    trySmooth();
 
     setSelected(next);
   };
