@@ -242,11 +242,11 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
         return sum + Math.round(v.grams * k);
       }, 0);
 
-    const minK = mealTargetKcal * 0.95;
-    const maxK = mealTargetKcal * 1.05;
+    const minKFinal = mealTargetKcal * 0.95;
+    const maxKFinal = mealTargetKcal * 1.05;
     let finalTotalK = computeTotalK(next);
 
-    if (finalTotalK < minK || finalTotalK > maxK) {
+    if (finalTotalK < minKFinal || finalTotalK > maxKFinal) {
       const adjustableIds = Object.keys(next).filter((id) => {
         const f = foods.find((x) => x.id === id);
         if (!f) return false;
