@@ -170,19 +170,18 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     });
   };
 
-  const adjustTowardTarget = (
+  const adjustDownToTarget = (
     data: Record<string, { grams: number }>,
-    minK: number,
     maxK: number
   ) => {
     let totalK = computeTotalK(data);
-    if (totalK >= minK && totalK <= maxK) return;
+    if (totalK <= maxK) return;
 
     const totals = groupByType(data);
     const ids = Object.keys(data).sort(
       (a, b) => kcalPerGram(b) - kcalPerGram(a)
     );
-    const step = totalK > maxK ? -5 : 5;
+    const step = -5;
     const maxIters = 300;
 
     const canApplyDelta = (id: string, delta: number) => {
@@ -211,7 +210,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
       }
       if (!moved) break;
       totalK = computeTotalK(data);
-      if (totalK >= minK && totalK <= maxK) break;
+      if (totalK <= maxK) break;
     }
   };
 
@@ -272,10 +271,8 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     // 🔒 Application des CAPS_GRAMS par type (total du type, pas par item)
     applyTypeCaps(next);
 
-    // 🎯 Ajustement fin pour rester dans ±5% de la cible
-    const minK = mealTargetKcal * 0.95;
-    const maxK = mealTargetKcal * 1.05;
-    adjustTowardTarget(next, minK, maxK);
+    // 🎯 Ajustement fin pour ne jamais dépasser la cible
+    adjustDownToTarget(next, mealTargetKcal);
 
     setSelected(next);
   };
