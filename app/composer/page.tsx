@@ -8,12 +8,11 @@ import BackButton from "@/components/BackButton";
 
 // Ratios cibles (en % des calories du repas)
 const RATIOS: Record<string, number> = {
-  Féculents: 0.35,   // énergie contrôlée
-  Protéines: 0.35,   // priorité absolue
-  Légumes: 0.05,     // fibres + satiété
-  Sides: 0.25,       // bonnes graisses
+  Féculents: 0.35, // énergie contrôlée
+  Protéines: 0.35, // priorité absolue
+  Légumes: 0.05, // fibres + satiété
+  Sides: 0.25, // bonnes graisses
 };
-
 
 export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   const { user } = useAuth();
@@ -194,6 +193,36 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
       for (const it of afterList) {
         let g = round5(it.grams * factor);
         next[it.id] = { grams: g };
+      }
+    }
+
+    // 🔽 SÉCURITÉ : toujours rester SOUS la cible kcal
+    const finalList = Object.entries(next).map(([id, v]) => {
+      const f = foods.find((x) => x.id === id);
+      const kcal = Math.round(
+        v.grams * ((Number(f?.caloriesPer100g) || 0) / 100)
+      );
+      return { id, grams: v.grams, kcal, type: f?.typeName };
+    });
+
+    let finalTotal = finalList.reduce((s, x) => s + x.kcal, 0);
+
+    // 👉 Si on dépasse, on réduit UNIQUEMENT les féculents
+    if (finalTotal > mealTargetKcal) {
+      const excess = finalTotal - mealTargetKcal;
+
+      const carbs = finalList.filter((x) => x.type === "Féculents");
+      if (carbs.length > 0) {
+        const kcalPerGramCarb =
+          carbs.reduce((s, c) => s + c.kcal, 0) /
+          carbs.reduce((s, c) => s + c.grams, 0);
+
+        const gramsToRemove = Math.ceil(excess / (kcalPerGramCarb || 1));
+
+        carbs.forEach((c) => {
+          const reduce = Math.min(c.grams, gramsToRemove);
+          next[c.id].grams = round5(c.grams - reduce);
+        });
       }
     }
 
