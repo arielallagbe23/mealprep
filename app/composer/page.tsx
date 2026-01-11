@@ -9,9 +9,9 @@ import BackButton from "@/components/BackButton";
 // Ratios cibles (en % des calories du repas)
 const RATIOS: Record<string, number> = {
   Féculents: 0.35, // énergie contrôlée
-  Protéines: 0.35, // priorité absolue
+  Protéines: 0.45, // priorité absolue
   Légumes: 0.05, // fibres + satiété
-  Sides: 0.25, // bonnes graisses
+  Sides: 0.15, // bonnes graisses
 };
 
 const CAPS_GRAMS: Record<string, { min?: number; max?: number }> = {
