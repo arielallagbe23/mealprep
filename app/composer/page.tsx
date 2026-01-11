@@ -480,7 +480,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
                   : "bg-purple-600 hover:bg-purple-700 active:scale-95 transition"
               }`}
             >
-              ⚡ Auto-quantités
+              ⚡ Auto-quantités HVKHVK
             </button>
           </div>
 
