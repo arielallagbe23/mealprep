@@ -111,6 +111,10 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     return { perType, total };
   }, [selectedList]);
 
+  const surplusKcal = useMemo(() => {
+    return Math.max(0, mealTargetKcal - totals.total);
+  }, [mealTargetKcal, totals.total]);
+
   // --- Cibles par type ---
   const targets = useMemo(() => {
     const t: Record<string, number> = {};
@@ -138,6 +142,18 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   const typeOf = (id: string) => findFood(id)?.typeName || "Autres";
   const kcalPerGram = (id: string) =>
     (Number(findFood(id)?.caloriesPer100g) || 0) / 100;
+  const updateFoodGrams = (id: string, delta: number) => {
+    setSelected((prev) => {
+      const cur = prev[id]?.grams || 0;
+      const nextG = Math.max(0, round5(cur + delta));
+      if (nextG <= 0) {
+        const c = { ...prev };
+        delete c[id];
+        return c;
+      }
+      return { ...prev, [id]: { grams: nextG } };
+    });
+  };
   const computeTotalK = (data: Record<string, { grams: number }>) =>
     Math.round(
       Object.entries(data).reduce((sum, [id, v]) => {
@@ -421,6 +437,19 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
                 />
               </label>
 
+              <label className="text-sm text-gray-700 dark:text-gray-300">
+                Surplus calorique
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  placeholder="ex: 150"
+                  value={surplusKcal}
+                  readOnly
+                  className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </label>
+
               <span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700">
                 Restant après petit-déj :{" "}
                 <b>
@@ -463,7 +492,9 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
               <span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700">
                 Cible repas : <b>{mealTargetKcal}</b> kcal (±5%)
               </span>
-              {Object.keys(RATIOS).map((t) => typeBadge(t))}
+              {Object.keys(RATIOS).map((t) => (
+                <span key={t}>{typeBadge(t)}</span>
+              ))}
             </div>
 
             {/* Bouton auto quantités */}
@@ -477,7 +508,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
                   : "bg-purple-600 hover:bg-purple-700 active:scale-95 transition"
               }`}
             >
-              ⚡ Auto-quantités HVKHVK
+              ⚡ Auto-quantités
             </button>
           </div>
 
@@ -597,11 +628,31 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
                     const gramsTotal = f.grams * nbRepas;
                     const kcalTotal = f.kcal * nbRepas;
                     return (
-                      <li key={f.id} className="flex justify-between">
-                        <span>
+                      <li key={f.id} className="flex items-center justify-between gap-3">
+                        <span className="min-w-0 truncate">
                           {f.nom} — {gramsTotal} g
                         </span>
-                        <span className="font-medium">{kcalTotal} kcal</span>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => updateFoodGrams(f.id, -5)}
+                              className="px-2 py-1 rounded bg-rose-600 text-white text-xs hover:bg-rose-700 active:scale-95 transition"
+                            >
+                              –
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateFoodGrams(f.id, 5)}
+                              className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 active:scale-95 transition"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <span className="font-medium min-w-[72px] text-right">
+                            {kcalTotal} kcal
+                          </span>
+                        </div>
                       </li>
                     );
                   })}
