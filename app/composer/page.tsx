@@ -1,699 +1,77 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useAuth } from "@/components/useAuth";
-import { useRouter } from "next/navigation";
 import RequireAuth from "@/components/RequireAuth";
-import BackButton from "@/components/BackButton";
-
-// Ratios cibles (en % des calories du repas)
-const RATIOS: Record<string, number> = {
-  Féculents: 0.325, // énergie contrôlée
-  Protéines: 0.475, // priorité absolue
-  Légumes: 0.05, // fibres + satiété
-  Sides: 0.15, // bonnes graisses
-};
-
-const CAPS_GRAMS: Record<string, { min?: number; max?: number }> = {
-  Légumes: { min: 200, max: 450 },
-  Sides: { min: 0, max: 25 },
-};
+import FoodsList from "./components/FoodsList";
+import MealSummary from "./components/MealSummary";
+import ParamsCard from "./components/ParamsCard";
+import { useComposer } from "./useComposer";
 
 export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
-  const { user } = useAuth();
-
-  const [foods, setFoods] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
-  const [dailyKcal, setDailyKcal] = useState(""); // J (kcal/jour)
-  const [mealType, setMealType] = useState<"dejeuner" | "diner">("dejeuner");
-  const [selected, setSelected] = useState<Record<string, { grams: number }>>(
-    {}
-  );
-  const [nbRepas, setNbRepas] = useState(1);
-  const [breakfastKcal, setBreakfastKcal] = useState<string>("500"); // kcal du petit-déj saisi
-  const [success, setSuccess] = useState<string | null>(null);
-
-  async function fetchCurrentUser() {
-    const res = await fetch("/api/users/me", { credentials: "include" });
-    if (!res.ok) throw new Error("Impossible de récupérer l'utilisateur");
-    return res.json() as Promise<{
-      uid: string;
-      email: string;
-      nickname?: string | null;
-    }>;
-  }
-
-  // --- Fetch aliments ---
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        setErr("");
-        setLoading(true);
-        const res = await fetch(`${apiBaseUrl}/api/foods?expandType=true`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || "Erreur de chargement");
-        if (alive) setFoods(Array.isArray(data) ? data : []);
-      } catch (e: any) {
-        if (alive) setErr(e.message);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [apiBaseUrl]);
-
-  // --- Cible du repas ---
-  const mealTargetKcal = useMemo(() => {
-    const base = Number(dailyKcal) || 0;
-    const bf = Number(breakfastKcal) || 0; // petit-déj saisi
-    const remaining = Math.max(0, base - bf); // calories restantes sur la journée
-    const ratio = mealType === "dejeuner" ? 0.6 : 0.4; // 60% midi / 40% soir (inchangé)
-    return Math.round(remaining * ratio);
-  }, [dailyKcal, breakfastKcal, mealType]);
-
-  // --- Groupes par type ---
-  const grouped = useMemo(() => {
-    return foods.reduce((acc: Record<string, any[]>, f: any) => {
-      const k = f.typeName || "Autres";
-      (acc[k] ||= []).push(f);
-      return acc;
-    }, {});
-  }, [foods]);
-
-  // --- Liste sélectionnée enrichie ---
-  const selectedList = useMemo(() => {
-    return Object.entries(selected)
-      .map(([id, v]) => {
-        const f = foods.find((x) => x.id === id);
-        if (!f) return null;
-        const grams = Number(v.grams) || 0;
-        const kcal = Math.round(
-          (grams / 100) * (Number(f.caloriesPer100g) || 0)
-        );
-        return { ...f, grams, kcal };
-      })
-      .filter(Boolean) as any[];
-  }, [selected, foods]);
-
-  // --- Totaux ---
-  const totals = useMemo(() => {
-    const perType: Record<string, number> = {};
-    let total = 0;
-    for (const it of selectedList) {
-      const key = it.typeName || "Autres";
-      perType[key] = (perType[key] || 0) + it.kcal;
-      total += it.kcal;
-    }
-    return { perType, total };
-  }, [selectedList]);
-
-  const surplusKcal = useMemo(() => {
-    return Math.max(0, mealTargetKcal - totals.total);
-  }, [mealTargetKcal, totals.total]);
-
-  // --- Cibles par type ---
-  const targets = useMemo(() => {
-    const t: Record<string, number> = {};
-    Object.entries(RATIOS).forEach(([type, r]) => {
-      t[type] = Math.round(mealTargetKcal * r);
-    });
-    return t;
-  }, [mealTargetKcal]);
-
-  // Helpers UI
-  const addFood = (id: string) => {
-    setSelected((prev) =>
-      prev[id] ? prev : { ...prev, [id]: { grams: 100 } }
-    );
-  };
-  const removeFood = (id: string) => {
-    setSelected((prev) => {
-      const c = { ...prev };
-      delete c[id];
-      return c;
-    });
-  };
-  const round5 = (g: number) => Math.max(0, Math.round(g / 5) * 5);
-  const findFood = (id: string) => foods.find((x) => x.id === id);
-  const typeOf = (id: string) => findFood(id)?.typeName || "Autres";
-  const kcalPerGram = (id: string) =>
-    (Number(findFood(id)?.caloriesPer100g) || 0) / 100;
-  const updateFoodGrams = (id: string, delta: number) => {
-    setSelected((prev) => {
-      const cur = prev[id]?.grams || 0;
-      const nextG = Math.max(0, round5(cur + delta));
-      if (nextG <= 0) {
-        const c = { ...prev };
-        delete c[id];
-        return c;
-      }
-      return { ...prev, [id]: { grams: nextG } };
-    });
-  };
-  const computeTotalK = (data: Record<string, { grams: number }>) =>
-    Math.round(
-      Object.entries(data).reduce((sum, [id, v]) => {
-        return sum + v.grams * kcalPerGram(id);
-      }, 0)
-    );
-
-  const groupByType = (
-    data: Record<string, { grams: number }>
-  ): Record<string, { id: string; grams: number }[]> =>
-    Object.entries(data).reduce((acc, [id, v]) => {
-      const type = typeOf(id);
-      (acc[type] ||= []).push({ id, grams: v.grams });
-      return acc;
-    }, {} as Record<string, { id: string; grams: number }[]>);
-
-  const applyTypeCaps = (data: Record<string, { grams: number }>) => {
-    const byType = groupByType(data);
-    Object.entries(byType).forEach(([type, items]) => {
-      const cap = CAPS_GRAMS[type];
-      if (!cap || items.length === 0) return;
-      const totalG = items.reduce((s, it) => s + it.grams, 0);
-      let targetTotalG = totalG;
-      if (cap.min != null) targetTotalG = Math.max(targetTotalG, cap.min);
-      if (cap.max != null) targetTotalG = Math.min(targetTotalG, cap.max);
-      const factor = targetTotalG / (totalG || 1);
-      items.forEach((it) => {
-        data[it.id] = { grams: round5(it.grams * factor) };
-      });
-    });
-  };
-
-  const adjustDownToTarget = (
-    data: Record<string, { grams: number }>,
-    maxK: number
-  ) => {
-    let totalK = computeTotalK(data);
-    if (totalK <= maxK) return;
-
-    const totals = groupByType(data);
-    const ids = Object.keys(data).sort(
-      (a, b) => kcalPerGram(b) - kcalPerGram(a)
-    );
-    const step = -5;
-    const maxIters = 300;
-
-    const canApplyDelta = (id: string, delta: number) => {
-      const nextG = (data[id]?.grams || 0) + delta;
-      if (nextG < 0) return false;
-      const type = typeOf(id);
-      const cap = CAPS_GRAMS[type];
-      if (!cap) return true;
-      const nextTotal = (totals[type]?.reduce((s, it) => s + it.grams, 0) || 0) + delta;
-      if (cap.min != null && nextTotal < cap.min) return false;
-      if (cap.max != null && nextTotal > cap.max) return false;
-      return true;
-    };
-
-    for (let i = 0; i < maxIters; i += 1) {
-      let moved = false;
-      for (const id of ids) {
-        if (!canApplyDelta(id, step)) continue;
-        data[id] = { grams: round5(data[id].grams + step) };
-        const type = typeOf(id);
-        const list = totals[type] || [];
-        const idx = list.findIndex((it) => it.id === id);
-        if (idx >= 0) list[idx] = { id, grams: data[id].grams };
-        moved = true;
-        break;
-      }
-      if (!moved) break;
-      totalK = computeTotalK(data);
-      if (totalK <= maxK) break;
-    }
-  };
-
-  // ⚡ AUTO-QUANTITÉS
-  const autoQuantities = () => {
-    if (mealTargetKcal <= 0) return;
-
-    let current = { ...selected };
-    const ensureOnePerType = () => {
-      for (const type of Object.keys(RATIOS)) {
-        const hasInType = Object.keys(current).some((id) => {
-          const f = foods.find((x) => x.id === id);
-          return f && (f.typeName || "Autres") === type;
-        });
-        if (!hasInType) {
-          const candidate = (grouped[type] || [])[0];
-          if (candidate) current[candidate.id] = { grams: 100 };
-        }
-      }
-    };
-    if (Object.keys(current).length === 0) ensureOnePerType();
-
-    const selByType: Record<string, any[]> = {};
-    Object.keys(current).forEach((id) => {
-      const f = findFood(id);
-      if (!f) return;
-      const type = f.typeName || "Autres";
-      (selByType[type] ||= []).push(f);
-    });
-
-    const next: Record<string, { grams: number }> = {};
-    const kcalPerGramFood = (f: any) =>
-      (Number(f.caloriesPer100g) || 0) / 100;
-
-    Object.entries(RATIOS).forEach(([type]) => {
-      const items = selByType[type] || [];
-      const targetK = targets[type] || 0;
-      if (items.length === 0 || targetK <= 0) return;
-
-      const perItemK = targetK / items.length;
-      for (const f of items) {
-        const kpg = kcalPerGramFood(f) || 0.01;
-        let grams = perItemK / kpg;
-        grams = round5(grams);
-        next[f.id] = { grams };
-      }
-    });
-
-    // Ajustement global pour viser la cible
-    const initialTotal = computeTotalK(next);
-    if (initialTotal > 0) {
-      const factor = mealTargetKcal / initialTotal;
-      Object.keys(next).forEach((id) => {
-        next[id] = { grams: round5(next[id].grams * factor) };
-      });
-    }
-
-    // 🔒 Application des CAPS_GRAMS par type (total du type, pas par item)
-    applyTypeCaps(next);
-
-    // 🎯 Ajustement fin pour ne jamais dépasser la cible
-    adjustDownToTarget(next, mealTargetKcal);
-
-    setSelected(next);
-  };
-
-  // Badge visuel par type
-  const typeBadge = (type: string) => {
-    const cur = totals.perType[type] || 0;
-    const tgt = targets[type] || 0;
-    const diff = tgt - cur;
-    const sign = diff >= 0 ? "+" : "–";
-    const cls =
-      cur === 0
-        ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-        : diff >= 0
-        ? "bg-blue-600 text-white"
-        : "bg-amber-600 text-white";
-    return (
-      <span className={`px-2 py-1 rounded-lg text-xs font-medium ${cls}`}>
-        {type} · {cur} / {tgt} kcal ({sign}
-        {Math.abs(diff)})
-      </span>
-    );
-  };
-
-  const router = useRouter();
-
-  async function saveMeal() {
-    try {
-      if (selectedList.length === 0)
-        throw new Error("Aucun aliment sélectionné");
-
-      // 1) Récupérer l'utilisateur via le cookie (serveur)
-      const me = await fetchCurrentUser(); // -> { uid, email, nickname }
-      const userId = me.uid;
-
-      // ---- NOM AUTOMATIQUE ----------------------------------
-      const prettyType = mealType === "dejeuner" ? "Déjeuner" : "Dîner";
-
-      // helper pour normaliser les types (accents, majuscules/minuscules)
-      const norm = (s?: string) =>
-        (s || "")
-          .normalize("NFD")
-          .replace(/\p{Diacritic}/gu, "")
-          .toLowerCase();
-
-      const firstByType = (label: string) =>
-        selectedList.find((x) => norm(x.typeName) === norm(label))?.nom;
-
-      // Chercher un féculent
-      const carb =
-        firstByType("Féculents") ||
-        firstByType("Feculents") ||
-        selectedList.find((x) => /feculent/i.test(norm(x.typeName)))?.nom ||
-        selectedList[0]?.nom ||
-        "féculent";
-
-      // Chercher une protéine
-      const protein =
-        firstByType("Protéines") ||
-        firstByType("Proteines") ||
-        selectedList.find((x) => /proteine/i.test(norm(x.typeName)))?.nom ||
-        selectedList.find((x) => /viande|poisson|oeuf/i.test(norm(x.typeName)))
-          ?.nom ||
-        "protéine";
-
-      const autoName = `${prettyType} — ${carb} + ${protein}`;
-      // --------------------------------------------------------
-
-      // 2) Construire le payload d’enregistrement
-      const payload = {
-        userId,
-        name: autoName, // ⬅️ utilise ton nom généré
-        portions: nbRepas,
-        items: selectedList.map((f) => ({
-          id: f.id,
-          nom: f.nom,
-          typeName: f.typeName,
-          caloriesPer100g: f.caloriesPer100g,
-          grams: f.grams, // par portion
-        })),
-      };
-
-      // 3) Enregistrer le repas
-      const res = await fetch("/api/meals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include", // (optionnel ici, mais cohérent)
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Erreur d'enregistrement");
-
-      // Si tu préfères rester sur place :
-      // alert("Repas enregistré ✅");
-      setSuccess("Repas enregistré ✅");
-      setErr(""); // optionnel: effacer une erreur précédente
-    } catch (e: any) {
-      alert(e.message || "Erreur");
-      setErr(e.message || "Erreur");
-      setSuccess(null);
-    }
-  }
+  const {
+    loading,
+    err,
+    dailyKcal,
+    setDailyKcal,
+    breakfastKcal,
+    setBreakfastKcal,
+    surplusKcal,
+    mealType,
+    setMealType,
+    mealTargetKcal,
+    typeBadge,
+    autoQuantities,
+    grouped,
+    selected,
+    addFood,
+    removeFood,
+    selectedList,
+    nbRepas,
+    setNbRepas,
+    updateFoodGrams,
+    totals,
+    saveMeal,
+    success,
+  } = useComposer(apiBaseUrl);
 
   return (
     <RequireAuth>
       <div className="w-full min-h-screen bg-gradient-to-b from-gray-900 to-gray-900 px-4 py-6">
         <div className="w-full max-w-md mx-auto space-y-6">
-          {/* Bloc paramètres */}
-          <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-4 shadow-sm">
-            {/* Input + boutons repas */}
+          <ParamsCard
+            dailyKcal={dailyKcal}
+            setDailyKcal={setDailyKcal}
+            breakfastKcal={breakfastKcal}
+            setBreakfastKcal={setBreakfastKcal}
+            surplusKcal={surplusKcal}
+            mealType={mealType}
+            setMealType={setMealType}
+            mealTargetKcal={mealTargetKcal}
+            loading={loading}
+            err={err}
+            onAutoQuantities={autoQuantities}
+            typeBadge={typeBadge}
+          />
 
-            <BackButton
-              label="Retour"
-              fallbackHref="/accueil"
-              className="mb-3 w-fit"
-            />
+          <FoodsList
+            grouped={grouped}
+            selected={selected}
+            loading={loading}
+            err={err}
+            onAddFood={addFood}
+            onRemoveFood={removeFood}
+          />
 
-            <h1 className="text-xl md:text-2xl font-bold text-center text-white">
-              🍽️ Composer un repas
-            </h1>
-
-            <div className="grid grid-cols-1 gap-3">
-              <label className="text-sm text-gray-700 dark:text-gray-300">
-                Apport journalier (kcal)
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  placeholder="ex: 2200"
-                  value={dailyKcal}
-                  onChange={(e) => setDailyKcal(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </label>
-
-              <label className="text-sm text-gray-700 dark:text-gray-300">
-                Petit déjeuner (kcal)
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  placeholder="ex: 300"
-                  value={breakfastKcal}
-                  onChange={(e) => setBreakfastKcal(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </label>
-
-              <label className="text-sm text-gray-700 dark:text-gray-300">
-                Surplus calorique
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  placeholder="ex: 150"
-                  value={surplusKcal}
-                  readOnly
-                  className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </label>
-
-              <span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700">
-                Restant après petit-déj :{" "}
-                <b>
-                  {Math.max(
-                    0,
-                    (Number(dailyKcal) || 0) - (Number(breakfastKcal) || 0)
-                  )}
-                </b>{" "}
-                kcal
-              </span>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMealType("dejeuner")}
-                  className={`flex-1 py-3 rounded-lg font-semibold text-sm md:text-base ${
-                    mealType === "dejeuner"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                  }`}
-                >
-                  Déjeuner (60%)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMealType("diner")}
-                  className={`flex-1 py-3 rounded-lg font-semibold text-sm md:text-base ${
-                    mealType === "diner"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                  }`}
-                >
-                  Dîner (40%)
-                </button>
-              </div>
-            </div>
-
-            {/* Badges cibles */}
-            <div className="text-sm text-gray-700 dark:text-gray-200 flex flex-wrap gap-2">
-              <span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700">
-                Cible repas : <b>{mealTargetKcal}</b> kcal (±5%)
-              </span>
-              {Object.keys(RATIOS).map((t) => (
-                <span key={t}>{typeBadge(t)}</span>
-              ))}
-            </div>
-
-            {/* Bouton auto quantités */}
-            <button
-              type="button"
-              disabled={mealTargetKcal <= 0 || loading || !!err}
-              onClick={autoQuantities}
-              className={`w-full py-3 rounded-lg font-semibold text-white ${
-                mealTargetKcal <= 0 || loading || !!err
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-purple-600 hover:bg-purple-700 active:scale-95 transition"
-              }`}
-            >
-              ⚡ Auto-quantités
-            </button>
-          </div>
-
-          {/* Erreurs / loading */}
-          {loading && (
-            <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-              Chargement des aliments...
-            </div>
-          )}
-          {err && (
-            <div className="text-center text-sm text-red-700 bg-red-100 dark:bg-red-200 dark:text-red-900 px-3 py-2 rounded-lg">
-              {err}
-            </div>
-          )}
-
-          {/* Liste par type */}
-          {!loading && !err && (
-            <div className="space-y-4">
-              {Object.entries(grouped).map(([type, items]) => (
-                <div
-                  key={type}
-                  className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800 shadow-sm"
-                >
-                  <h2 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                    {type}
-                  </h2>
-                  <ul className="space-y-2">
-                    {items.map((item) => {
-                      const isSel = !!selected[item.id];
-                      const grams = selected[item.id]?.grams ?? 0;
-                      const kcal = Math.round(
-                        (grams / 100) * (item.caloriesPer100g || 0)
-                      );
-                      return (
-                        <li
-                          key={item.id}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 px-3 py-3"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-gray-800 dark:text-gray-100 truncate">
-                              {item.nom}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {item.caloriesPer100g} kcal/100g
-                            </p>
-                          </div>
-
-                          {!isSel ? (
-                            <button
-                              onClick={() => addFood(item.id)}
-                              className="ml-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition"
-                            >
-                              ➕ Ajouter
-                            </button>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-800 dark:text-gray-100 min-w-[70px] text-right">
-                                {grams} g
-                              </span>
-                              <span className="text-xs text-gray-700 dark:text-gray-200 min-w-[64px] text-right">
-                                {kcal} kcal
-                              </span>
-                              <button
-                                onClick={() => removeFood(item.id)}
-                                className="px-3 py-2 rounded-lg bg-rose-600 text-white text-sm hover:bg-rose-700 active:scale-95 transition"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Résumé */}
-          <div className="space-y-3">
-            <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 space-y-4 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-                Ton repas
-              </h3>
-
-              {/* Nb repas */}
-              <div className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
-                <span>Nombre de repas :</span>
-                <span className="font-semibold">{nbRepas}</span>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNbRepas((n) => Math.max(1, n - 1))}
-                    className="px-4 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 font-bold active:scale-95 transition"
-                  >
-                    –
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNbRepas((n) => n + 1)}
-                    className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-bold active:scale-95 transition"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              {selectedList.length === 0 ? (
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Clique sur ⚡ Auto-quantités pour générer une proposition.
-                </p>
-              ) : (
-                <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                  {selectedList.map((f) => {
-                    const gramsTotal = f.grams * nbRepas;
-                    const kcalTotal = f.kcal * nbRepas;
-                    return (
-                      <li key={f.id} className="flex items-center justify-between gap-3">
-                        <span className="min-w-0 truncate">
-                          {f.nom} — {gramsTotal} g
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => updateFoodGrams(f.id, -5)}
-                              className="px-2 py-1 rounded bg-rose-600 text-white text-xs hover:bg-rose-700 active:scale-95 transition"
-                            >
-                              –
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => updateFoodGrams(f.id, 5)}
-                              className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 active:scale-95 transition"
-                            >
-                              +
-                            </button>
-                          </div>
-                          <span className="font-medium min-w-[72px] text-right">
-                            {kcalTotal} kcal
-                          </span>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-
-              <div className="mt-3 flex justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
-                <span>Total</span>
-                <span>
-                  {totals.total * nbRepas} / {mealTargetKcal * nbRepas} kcal
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-2">
-              <button
-                disabled={mealTargetKcal <= 0 || selectedList.length === 0}
-                className={`w-full py-3 rounded-xl font-semibold text-white ${
-                  mealTargetKcal <= 0 || selectedList.length === 0
-                    ? "bg-gray-600 cursor-not-allowed"
-                    : "bg-green-600 hover:bg-green-700"
-                }`}
-                onClick={saveMeal}
-              >
-                💾 Enregistrer ce repas
-              </button>
-
-              {success && (
-                <div className="mb-3 rounded-lg border border-emerald-700 bg-emerald-900/40 text-emerald-200 px-3 py-2">
-                  {success}
-                </div>
-              )}
-
-              <a
-                href="/meals"
-                className="block w-full text-center py-3 mb-20 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700"
-              >
-                📚 Mes repas enregistrés
-              </a>
-            </div>
-          </div>
+          <MealSummary
+            selectedList={selectedList}
+            nbRepas={nbRepas}
+            setNbRepas={setNbRepas}
+            updateFoodGrams={updateFoodGrams}
+            totals={totals}
+            mealTargetKcal={mealTargetKcal}
+            dailyKcal={dailyKcal}
+            onSaveMeal={saveMeal}
+            success={success}
+          />
         </div>
       </div>
     </RequireAuth>
