@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactElement } from "react";
 import BackButton from "@/components/BackButton";
 import { RATIOS } from "../constants";
 
@@ -15,7 +16,7 @@ type Props = {
   loading: boolean;
   err: string;
   onAutoQuantities: () => void;
-  typeBadge: (type: string) => JSX.Element;
+  typeBadge: (type: string) => ReactElement;
 };
 
 export default function ParamsCard({
