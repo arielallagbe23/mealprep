@@ -116,7 +116,7 @@ export function useComposer(apiBaseUrl = "") {
   const getItemMaxGrams = (id: string) => {
     const f = findFood(id);
     if (!f?.nom) return null;
-    if (norm(f.nom) === norm("Blanc de poulet cru")) return 250;
+    if (norm(f.nom) === norm("Blanc de poulet cru")) return 300;
     return null;
   };
   const clampItemGrams = (id: string, grams: number) => {
