@@ -5,6 +5,11 @@ export type Food = {
   caloriesPer100g?: number;
 };
 
+export type FoodType = {
+  id: string;
+  nomtype?: string;
+};
+
 export type SelectedMap = Record<string, { grams: number }>;
 
 export type SelectedItem = Food & {

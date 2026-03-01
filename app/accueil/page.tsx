@@ -49,6 +49,13 @@ export default function Accueil() {
   Ma liste de courses
 </Link>
 
+<Link
+  href="/comptage-calories"
+  className="block w-full py-3 px-6 rounded-lg bg-orange-600 text-white font-semibold hover:bg-orange-700 transition"
+>
+  Token comptage calories
+</Link>
+
 
           <button
             onClick={onLogout}

@@ -55,6 +55,11 @@ export async function POST(req) {
     // Réponse + cookie HttpOnly
     const res = NextResponse.json({
       message: "Connexion réussie",
+      token,
+      uid: payload.uid,
+      email: payload.email,
+      nickname: payload.nickname,
+      displayName: payload.nickname,
       user: payload,
     });
 

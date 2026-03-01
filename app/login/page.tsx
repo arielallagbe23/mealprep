@@ -4,6 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/useAuth";
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Erreur";
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,8 +43,8 @@ export default function LoginPage() {
       });
 
       router.replace("/accueil");
-    } catch (err: any) {
-      setMsg(err.message);
+    } catch (err: unknown) {
+      setMsg(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

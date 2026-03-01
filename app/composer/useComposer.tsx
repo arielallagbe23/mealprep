@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CAPS_GRAMS, RATIOS } from "./constants";
-import type { Food, SelectedItem, SelectedMap, Totals } from "./types";
+import type { Food, FoodType, SelectedItem, SelectedMap, Totals } from "./types";
 
 export function useComposer(apiBaseUrl = "") {
   const [foods, setFoods] = useState<Food[]>([]);
+  const [foodTypes, setFoodTypes] = useState<FoodType[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [dailyKcal, setDailyKcal] = useState("");
@@ -27,14 +28,29 @@ export function useComposer(apiBaseUrl = "") {
 
   useEffect(() => {
     let alive = true;
+
+    const loadFoods = async () => {
+      const res = await fetch(`${apiBaseUrl}/api/foods?expandType=true`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Erreur de chargement");
+      return Array.isArray(data) ? data : [];
+    };
+
+    const loadTypes = async () => {
+      const res = await fetch(`${apiBaseUrl}/api/types`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Erreur de chargement des types");
+      return Array.isArray(data) ? data : [];
+    };
+
     (async () => {
       try {
         setErr("");
         setLoading(true);
-        const res = await fetch(`${apiBaseUrl}/api/foods?expandType=true`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || "Erreur de chargement");
-        if (alive) setFoods(Array.isArray(data) ? data : []);
+        const [foodsData, typesData] = await Promise.all([loadFoods(), loadTypes()]);
+        if (!alive) return;
+        setFoods(foodsData);
+        setFoodTypes(typesData);
       } catch (e: any) {
         if (alive) setErr(e.message);
       } finally {
@@ -45,6 +61,32 @@ export function useComposer(apiBaseUrl = "") {
       alive = false;
     };
   }, [apiBaseUrl]);
+
+  async function createFood(payload: {
+    nom: string;
+    caloriesPer100g: number;
+    typeId: string;
+  }) {
+    const res = await fetch(`${apiBaseUrl}/api/foods`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || "Erreur lors de la création de l'aliment");
+    }
+
+    setFoods((prev) => {
+      const typeName =
+        foodTypes.find((t) => t.id === payload.typeId)?.nomtype || "Autres";
+      return [{ ...data, typeName }, ...prev];
+    });
+
+    return data as Food;
+  }
 
   const mealTargetKcal = useMemo(() => {
     const base = Number(dailyKcal) || 0;
@@ -363,6 +405,7 @@ export function useComposer(apiBaseUrl = "") {
 
   return {
     foods,
+    foodTypes,
     loading,
     err,
     setErr,
@@ -388,5 +431,6 @@ export function useComposer(apiBaseUrl = "") {
     autoQuantities,
     typeBadge,
     saveMeal,
+    createFood,
   };
 }

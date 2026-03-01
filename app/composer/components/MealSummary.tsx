@@ -39,6 +39,7 @@ export default function MealSummary({
   const [uid, setUid] = useState<string | null>(null);
   const [loadingLog, setLoadingLog] = useState(false);
   const [logErr, setLogErr] = useState<string | null>(null);
+  const [countSuccess, setCountSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -86,34 +87,28 @@ export default function MealSummary({
 
   const handleCount = async () => {
     const mealKcal = Math.round(totals.total * nbRepas);
-    const dayKcal = Number(dailyKcal) || 0;
-    if (!uid || !logDate || mealKcal <= 0 || dayKcal <= 0) return;
+    const dateKey = todayISO();
+    if (mealKcal <= 0) return;
     try {
+      setLoadingLog(true);
       setLogErr(null);
-      const res = await fetch("/api/calorie-log", {
+      setCountSuccess(null);
+      const res = await fetch("/api/calorie-auth/entry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          userId: uid,
-          date: logDate,
-          mealKcal,
-          dayKcal,
-          label: "Repas",
+          dateKey,
+          calories: mealKcal,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Erreur d'enregistrement");
-      const r = await fetch(
-        `/api/calorie-log?userId=${encodeURIComponent(uid)}&date=${encodeURIComponent(
-          logDate
-        )}`,
-        { credentials: "include" }
-      );
-      const list = await r.json();
-      if (r.ok) setEntries(Array.isArray(list) ? list : []);
+      setCountSuccess("Ajouté au comptage calories");
     } catch (e: any) {
       setLogErr(e.message || "Erreur");
+    } finally {
+      setLoadingLog(false);
     }
   };
 
@@ -295,8 +290,8 @@ export default function MealSummary({
           Comptage calories
         </div>
         <div className="mt-2 grid grid-cols-3 gap-2 text-sm text-gray-800 dark:text-gray-100">
-          <div className="rounded-md bg-gray-100 dark:bg-gray-800 px-2 py-1 text-center">
-            <div className="text-xs text-gray-500 dark:text-gray-400">Total</div>
+          <div className="rounded-md bg-blue-100 dark:bg-blue-500 px-2 py-1 text-center">
+            <div className="text-xs text-gray-500 dark:text-gray-100">Total</div>
             <div className="font-semibold">{totals.total * nbRepas}</div>
           </div>
           <div className="rounded-md bg-gray-100 dark:bg-gray-800 px-2 py-1 text-center">
@@ -312,162 +307,25 @@ export default function MealSummary({
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-900/40 px-3 py-3">
-        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-          Journal des calories
-        </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-2">
-          <label className="text-sm text-gray-700 dark:text-gray-300">
-            Date
-            <input
-              type="date"
-              value={logDate}
-              onChange={(e) => setLogDate(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100"
-            />
-          </label>
-
-          <button
-            type="button"
-            onClick={handleCount}
-            className="w-full rounded-lg bg-amber-600 py-2 font-semibold text-white hover:bg-amber-700"
-          >
-            Compter les calories
-          </button>
-
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              placeholder="Calories collation"
-              value={snackKcal}
-              onChange={(e) => setSnackKcal(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100"
-            />
-            <button
-              type="button"
-              onClick={handleAddSnack}
-              className="w-full rounded-lg bg-emerald-600 py-2 font-semibold text-white hover:bg-emerald-700"
-            >
-              Ajouter une collation
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="grid grid-cols-3 bg-gray-100 dark:bg-gray-800 text-xs uppercase text-gray-500 dark:text-gray-400">
-            <div className="px-3 py-2">Date</div>
-            <div className="px-3 py-2">Calorie du repas</div>
-            <div className="px-3 py-2">Calorie de la journée</div>
-          </div>
-          {loadingLog ? (
-            <div className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">
-              Chargement…
-            </div>
-          ) : entries.length === 0 ? (
-            <div className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">
-              Aucune entrée pour l’instant.
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {entries.map((e, i) => (
-                <div
-                  key={`${e.date}-${i}-${e.mealKcal}`}
-                  className="grid grid-cols-3 text-sm text-gray-800 dark:text-gray-100"
-                >
-                  <div className="px-3 py-2">{e.date}</div>
-                  <div className="px-3 py-2">
-                    {e.mealKcal} kcal{" "}
-                    {e.label ? (
-                      <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                        ({e.label})
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="px-3 py-2 flex items-center justify-between gap-2">
-                    <span>{e.dayKcal} kcal</span>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(e.id)}
-                      className="rounded-md bg-rose-600 px-2 py-1 text-xs text-white hover:bg-rose-700"
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-900/30 px-3 py-3">
-          <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            Suivi quotidien
-          </div>
-          <div className="mt-3 flex items-center gap-3 text-xs text-gray-400">
-            <span className="flex items-center gap-2">
-              <span className="inline-block h-2 w-5 rounded bg-yellow-400" />
-              Calories du jour
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="inline-block h-2 w-5 rounded bg-sky-400" />
-              Total consommé
-            </span>
-          </div>
-
-          <div className="mt-3 flex justify-center">
-            <svg
-              width={chart.width}
-              height={chart.height}
-              viewBox={`0 0 ${chart.width} ${chart.height}`}
-              className="max-w-full"
-            >
-              <rect
-                x="0"
-                y="0"
-                width={chart.width}
-                height={chart.height}
-                rx="10"
-                fill="transparent"
-              />
-              <polyline
-                points={chart.targetPolyline}
-                fill="none"
-                stroke="#facc15"
-                strokeWidth="2"
-                strokeDasharray="6 4"
-              />
-              <polyline
-                points={chart.consumedPolyline}
-                fill="none"
-                stroke="#38bdf8"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-
-          <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-300">
-            <div className="rounded-md bg-gray-800 px-2 py-1 text-center">
-              Objectif jour: {dayTarget || 0} kcal
-            </div>
-            <div className="rounded-md bg-gray-800 px-2 py-1 text-center">
-              Total consommé: {totalConsumed} kcal
-            </div>
-          </div>
-        </div>
-
-        {logErr && (
-          <div className="mt-3 rounded-lg border border-rose-700 bg-rose-900/30 px-3 py-2 text-sm text-rose-200">
-            {logErr}
-          </div>
-        )}
-      </div>
 
       <div className="grid grid-cols-1 gap-2">
+        <button
+          type="button"
+          disabled={
+            loadingLog ||
+            totals.total * nbRepas <= 0
+          }
+          className={`w-full py-3 rounded-xl font-semibold text-white ${
+            loadingLog || totals.total * nbRepas <= 0
+              ? "bg-gray-600 cursor-not-allowed"
+              : "bg-orange-600 hover:bg-orange-700"
+          }`}
+          onClick={handleCount}
+        >
+          {loadingLog ? "Ajout en cours..." : "Ajouter au comptage calorie"}
+        </button>
+
         <button
           disabled={mealTargetKcal <= 0 || selectedList.length === 0}
           className={`w-full py-3 rounded-xl font-semibold text-white ${
@@ -483,6 +341,18 @@ export default function MealSummary({
         {success && (
           <div className="mb-3 rounded-lg border border-emerald-700 bg-emerald-900/40 text-emerald-200 px-3 py-2">
             {success}
+          </div>
+        )}
+
+        {countSuccess && (
+          <div className="rounded-lg border border-emerald-700 bg-emerald-900/40 px-3 py-2 text-emerald-200">
+            {countSuccess}
+          </div>
+        )}
+
+        {logErr && (
+          <div className="rounded-lg border border-rose-700 bg-rose-900/40 px-3 py-2 text-rose-200">
+            {logErr}
           </div>
         )}
 

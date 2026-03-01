@@ -37,6 +37,15 @@ export default function Home() {
             🚀 Composer un repas
           </Link>
         </div>
+
+        <div>
+          <Link
+            href="/comptage-calories"
+            className="inline-block py-2 px-5 rounded-lg border border-orange-300 text-orange-700 dark:border-orange-700 dark:text-orange-300 text-sm font-medium hover:bg-orange-50 dark:hover:bg-orange-950/30 transition"
+          >
+            🔐 Récupérer le token calories
+          </Link>
+        </div>
       </main>
 
       <footer className="mt-12 text-xs text-gray-500 dark:text-gray-400">

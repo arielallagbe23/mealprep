@@ -34,9 +34,11 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { nom, caloriesPer100g, typeId } = body;
+    const nom = String(body?.nom || "").trim();
+    const caloriesPer100g = Number(body?.caloriesPer100g);
+    const typeId = String(body?.typeId || "").trim();
 
-    if (!nom || typeof caloriesPer100g !== "number" || !typeId) {
+    if (!nom || !Number.isFinite(caloriesPer100g) || caloriesPer100g < 0 || !typeId) {
       return new Response(JSON.stringify({ error: "Champs requis: nom, caloriesPer100g, typeId" }), { status: 400 });
     }
 
