@@ -1,6 +1,22 @@
 export const runtime = "nodejs";
 import { adminDb } from "@/lib/firebaseAdmin";
 
+function toIsoDate(value) {
+  if (!value) return null;
+
+  if (typeof value === "string") return value;
+
+  if (typeof value?.toDate === "function") {
+    return value.toDate().toISOString();
+  }
+
+  if (typeof value === "object" && typeof value._seconds === "number") {
+    return new Date(value._seconds * 1000).toISOString();
+  }
+
+  return null;
+}
+
 // GET foods
 export async function GET(req) {
   try {
@@ -12,7 +28,14 @@ export async function GET(req) {
     if (typeId) q = q.where("typeId", "==", typeId);
 
     const foodsSnap = await q.get();
-    let foods = foodsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    let foods = foodsSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        createdAt: toIsoDate(data?.createdAt),
+      };
+    });
 
     if (expandType) {
       const typesSnap = await adminDb.collection("type_aliments").get();

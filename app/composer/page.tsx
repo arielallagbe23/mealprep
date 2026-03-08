@@ -1,7 +1,6 @@
 "use client";
 
 import RequireAuth from "@/components/RequireAuth";
-import AddFoodCard from "./components/AddFoodCard";
 import FoodsList from "./components/FoodsList";
 import MealSummary from "./components/MealSummary";
 import ParamsCard from "./components/ParamsCard";
@@ -14,7 +13,6 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     dailyKcal,
     setDailyKcal,
     surplusKcal,
-    foodTypes,
     activeMeals,
     composingMeal,
     toggleMeal,
@@ -33,7 +31,6 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     updateFoodGrams,
     totals,
     saveMeal,
-    createFood,
     success,
   } = useComposer(apiBaseUrl);
 
@@ -56,8 +53,6 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
             onAutoQuantities={autoQuantities}
             typeBadge={typeBadge}
           />
-
-          <AddFoodCard foodTypes={foodTypes} onCreateFood={createFood} />
 
           <FoodsList
             grouped={grouped}
