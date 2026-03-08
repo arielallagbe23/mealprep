@@ -1,8 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CAPS_GRAMS, RATIOS } from "./constants";
+import {
+  CAPS_GRAMS,
+  DINNER_MAX_RATIO,
+  DAY_MEAL_SLOTS,
+  RATIOS,
+  type DayMealKey,
+} from "./constants";
 import type { Food, FoodType, SelectedItem, SelectedMap, Totals } from "./types";
+
+const INITIAL_ACTIVE_MEALS: Record<DayMealKey, boolean> = DAY_MEAL_SLOTS.reduce(
+  (acc, slot) => {
+    acc[slot.key] = true;
+    return acc;
+  },
+  {} as Record<DayMealKey, boolean>
+);
 
 export function useComposer(apiBaseUrl = "") {
   const [foods, setFoods] = useState<Food[]>([]);
@@ -10,10 +24,11 @@ export function useComposer(apiBaseUrl = "") {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [dailyKcal, setDailyKcal] = useState("");
-  const [mealType, setMealType] = useState<"dejeuner" | "diner">("dejeuner");
+  const [activeMeals, setActiveMeals] =
+    useState<Record<DayMealKey, boolean>>(INITIAL_ACTIVE_MEALS);
+  const [composingMeal, setComposingMeal] = useState<DayMealKey>("dejeuner");
   const [selected, setSelected] = useState<SelectedMap>({});
   const [nbRepas, setNbRepas] = useState(1);
-  const [breakfastKcal, setBreakfastKcal] = useState<string>("500");
   const [success, setSuccess] = useState<string | null>(null);
 
   async function fetchCurrentUser() {
@@ -62,6 +77,62 @@ export function useComposer(apiBaseUrl = "") {
     };
   }, [apiBaseUrl]);
 
+  const toggleMeal = (key: DayMealKey) => {
+    setActiveMeals((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      const hasAtLeastOne = Object.values(next).some(Boolean);
+      return hasAtLeastOne ? next : prev;
+    });
+  };
+
+  useEffect(() => {
+    if (activeMeals[composingMeal]) return;
+    const firstActive = DAY_MEAL_SLOTS.find((slot) => activeMeals[slot.key]);
+    if (firstActive) {
+      setComposingMeal(firstActive.key);
+    }
+  }, [activeMeals, composingMeal]);
+
+  const mealDistribution = useMemo<Record<DayMealKey, number>>(() => {
+    const activeSlots = DAY_MEAL_SLOTS.filter((slot) => activeMeals[slot.key]);
+    const totalRatios =
+      activeSlots.reduce((sum, slot) => sum + slot.ratio, 0) || 1;
+
+    const map = DAY_MEAL_SLOTS.reduce((acc, slot) => {
+      acc[slot.key] = 0;
+      return acc;
+    }, {} as Record<DayMealKey, number>);
+
+    activeSlots.forEach((slot) => {
+      map[slot.key] = slot.ratio / totalRatios;
+    });
+
+    const dinnerIsActive = activeMeals.diner;
+    const otherActiveSlots = activeSlots.filter((slot) => slot.key !== "diner");
+    if (
+      dinnerIsActive &&
+      otherActiveSlots.length > 0 &&
+      map.diner > DINNER_MAX_RATIO
+    ) {
+      const excess = map.diner - DINNER_MAX_RATIO;
+      map.diner = DINNER_MAX_RATIO;
+
+      const othersCurrentTotal = otherActiveSlots.reduce(
+        (sum, slot) => sum + map[slot.key],
+        0
+      );
+
+      if (othersCurrentTotal > 0) {
+        otherActiveSlots.forEach((slot) => {
+          const weight = map[slot.key] / othersCurrentTotal;
+          map[slot.key] += excess * weight;
+        });
+      }
+    }
+
+    return map;
+  }, [activeMeals]);
+
   async function createFood(payload: {
     nom: string;
     caloriesPer100g: number;
@@ -90,11 +161,9 @@ export function useComposer(apiBaseUrl = "") {
 
   const mealTargetKcal = useMemo(() => {
     const base = Number(dailyKcal) || 0;
-    const bf = Number(breakfastKcal) || 0;
-    const remaining = Math.max(0, base - bf);
-    const ratio = mealType === "dejeuner" ? 0.6 : 0.4;
-    return Math.round(remaining * ratio);
-  }, [dailyKcal, breakfastKcal, mealType]);
+    const ratio = mealDistribution[composingMeal] || 0;
+    return Math.round(base * ratio);
+  }, [dailyKcal, mealDistribution, composingMeal]);
 
   const grouped = useMemo(() => {
     return foods.reduce((acc: Record<string, Food[]>, f) => {
@@ -264,7 +333,7 @@ export function useComposer(apiBaseUrl = "") {
   const autoQuantities = () => {
     if (mealTargetKcal <= 0) return;
 
-    let current = { ...selected };
+    const current = { ...selected };
     const ensureOnePerType = () => {
       for (const type of Object.keys(RATIOS)) {
         const hasInType = Object.keys(current).some((id) => {
@@ -345,7 +414,9 @@ export function useComposer(apiBaseUrl = "") {
       const me = await fetchCurrentUser();
       const userId = me.uid;
 
-      const prettyType = mealType === "dejeuner" ? "Déjeuner" : "Dîner";
+      const prettyType =
+        DAY_MEAL_SLOTS.find((slot) => slot.key === composingMeal)?.label ||
+        "Repas";
 
       const norm = (s?: string) =>
         (s || "")
@@ -411,13 +482,14 @@ export function useComposer(apiBaseUrl = "") {
     setErr,
     dailyKcal,
     setDailyKcal,
-    mealType,
-    setMealType,
+    activeMeals,
+    composingMeal,
+    toggleMeal,
+    setComposingMeal,
+    mealDistribution,
     selected,
     nbRepas,
     setNbRepas,
-    breakfastKcal,
-    setBreakfastKcal,
     success,
     mealTargetKcal,
     grouped,

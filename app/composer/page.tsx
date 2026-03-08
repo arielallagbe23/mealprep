@@ -13,12 +13,13 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     err,
     dailyKcal,
     setDailyKcal,
-    breakfastKcal,
-    setBreakfastKcal,
     surplusKcal,
     foodTypes,
-    mealType,
-    setMealType,
+    activeMeals,
+    composingMeal,
+    toggleMeal,
+    setComposingMeal,
+    mealDistribution,
     mealTargetKcal,
     typeBadge,
     autoQuantities,
@@ -43,11 +44,12 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
           <ParamsCard
             dailyKcal={dailyKcal}
             setDailyKcal={setDailyKcal}
-            breakfastKcal={breakfastKcal}
-            setBreakfastKcal={setBreakfastKcal}
             surplusKcal={surplusKcal}
-            mealType={mealType}
-            setMealType={setMealType}
+            activeMeals={activeMeals}
+            composingMeal={composingMeal}
+            onToggleMeal={toggleMeal}
+            onSelectMeal={setComposingMeal}
+            mealDistribution={mealDistribution}
             mealTargetKcal={mealTargetKcal}
             loading={loading}
             err={err}

@@ -2,16 +2,17 @@
 
 import type { ReactElement } from "react";
 import BackButton from "@/components/BackButton";
-import { RATIOS } from "../constants";
+import { DAY_MEAL_SLOTS, RATIOS, type DayMealKey } from "../constants";
 
 type Props = {
   dailyKcal: string;
   setDailyKcal: (v: string) => void;
-  breakfastKcal: string;
-  setBreakfastKcal: (v: string) => void;
   surplusKcal: number;
-  mealType: "dejeuner" | "diner";
-  setMealType: (v: "dejeuner" | "diner") => void;
+  activeMeals: Record<DayMealKey, boolean>;
+  composingMeal: DayMealKey;
+  onToggleMeal: (key: DayMealKey) => void;
+  onSelectMeal: (key: DayMealKey) => void;
+  mealDistribution: Record<DayMealKey, number>;
   mealTargetKcal: number;
   loading: boolean;
   err: string;
@@ -22,22 +23,26 @@ type Props = {
 export default function ParamsCard({
   dailyKcal,
   setDailyKcal,
-  breakfastKcal,
-  setBreakfastKcal,
   surplusKcal,
-  mealType,
-  setMealType,
+  activeMeals,
+  composingMeal,
+  onToggleMeal,
+  onSelectMeal,
+  mealDistribution,
   mealTargetKcal,
   loading,
   err,
   onAutoQuantities,
   typeBadge,
 }: Props) {
+  const currentMealLabel =
+    DAY_MEAL_SLOTS.find((slot) => slot.key === composingMeal)?.label || "Repas";
+
   return (
     <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-4 shadow-sm">
       <BackButton label="Retour" fallbackHref="/accueil" className="mb-3 w-fit" />
 
-      <h1 className="text-xl md:text-2xl font-bold text-center text-white">
+      <h1 className="text-xl md:text-2xl font-bold text-center text-gray-900 dark:text-gray-100">
         🍽️ Composer un repas
       </h1>
 
@@ -55,66 +60,81 @@ export default function ParamsCard({
           />
         </label>
 
-        <label className="text-sm text-gray-700 dark:text-gray-300">
-          Petit déjeuner (kcal)
-          <input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            placeholder="ex: 300"
-            value={breakfastKcal}
-            onChange={(e) => setBreakfastKcal(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </label>
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 space-y-2">
+          <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+            Repas de la journée
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            Active les repas que tu manges, la répartition % est recalculée automatiquement.
+          </div>
 
-        <label className="text-sm text-gray-700 dark:text-gray-300">
-          Surplus calorique
-          <input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            placeholder="ex: 150"
-            value={surplusKcal}
-            readOnly
-            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </label>
+          <div className="space-y-2">
+            {DAY_MEAL_SLOTS.map((slot) => {
+              const active = !!activeMeals[slot.key];
+              const selected = composingMeal === slot.key;
+              const pct = Math.round((mealDistribution[slot.key] || 0) * 1000) / 10;
 
-        <span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700">
-          Restant après petit-déj :{" "}
-          <b>{Math.max(0, (Number(dailyKcal) || 0) - (Number(breakfastKcal) || 0))}</b> kcal
-        </span>
+              return (
+                <div
+                  key={slot.key}
+                  className={`flex items-center justify-between rounded-lg border px-3 py-2 ${
+                    selected
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
+                      : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                  }`}
+                >
+                  <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => onToggleMeal(slot.key)}
+                      className="accent-blue-600"
+                    />
+                    <span>{slot.label}</span>
+                  </label>
 
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setMealType("dejeuner")}
-            className={`flex-1 py-3 rounded-lg font-semibold text-sm md:text-base ${
-              mealType === "dejeuner"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-            }`}
-          >
-            Déjeuner (60%)
-          </button>
-          <button
-            type="button"
-            onClick={() => setMealType("diner")}
-            className={`flex-1 py-3 rounded-lg font-semibold text-sm md:text-base ${
-              mealType === "diner"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-            }`}
-          >
-            Dîner (40%)
-          </button>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-semibold px-2 py-1 rounded ${
+                        active
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                          : "bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300"
+                      }`}
+                    >
+                      {pct}%
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onSelectMeal(slot.key)}
+                      disabled={!active}
+                      className={`px-3 py-1.5 rounded text-xs font-semibold ${
+                        selected
+                          ? "bg-blue-600 text-white"
+                          : active
+                          ? "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
+                          : "bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed"
+                      }`}
+                    >
+                      Composer
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            Repas actif: <span className="font-semibold">{currentMealLabel}</span>
+          </div>
         </div>
       </div>
 
       <div className="text-sm text-gray-700 dark:text-gray-200 flex flex-wrap gap-2">
         <span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700">
-          Cible repas : <b>{mealTargetKcal}</b> kcal (±5%)
+          Cible {currentMealLabel.toLowerCase()} : <b>{mealTargetKcal}</b> kcal
+        </span>
+        <span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700">
+          Écart actuel : <b>{surplusKcal}</b> kcal
         </span>
         {Object.keys(RATIOS).map((t) => (
           <span key={t}>{typeBadge(t)}</span>
