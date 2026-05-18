@@ -6,6 +6,7 @@ import {
   DINNER_MAX_RATIO,
   DAY_MEAL_SLOTS,
   RATIOS,
+  WHEY_SHAKER_KCAL,
   type DayMealKey,
 } from "./constants";
 import type { Food, FoodType, SelectedItem, SelectedMap, Totals } from "./types";
@@ -30,6 +31,7 @@ export function useComposer(apiBaseUrl = "") {
   const [selected, setSelected] = useState<SelectedMap>({});
   const [nbRepas, setNbRepas] = useState(1);
   const [success, setSuccess] = useState<string | null>(null);
+  const [wheyActive, setWheyActive] = useState(true);
 
   async function fetchCurrentUser() {
     const res = await fetch("/api/users/me", { credentials: "include" });
@@ -159,11 +161,15 @@ export function useComposer(apiBaseUrl = "") {
     return data as Food;
   }
 
-  const mealTargetKcal = useMemo(() => {
+  const mealBudgetKcal = useMemo(() => {
     const base = Number(dailyKcal) || 0;
+    return Math.max(0, base - (wheyActive ? WHEY_SHAKER_KCAL : 0));
+  }, [dailyKcal, wheyActive]);
+
+  const mealTargetKcal = useMemo(() => {
     const ratio = mealDistribution[composingMeal] || 0;
-    return Math.round(base * ratio);
-  }, [dailyKcal, mealDistribution, composingMeal]);
+    return Math.round(mealBudgetKcal * ratio);
+  }, [mealBudgetKcal, mealDistribution, composingMeal]);
 
   const grouped = useMemo(() => {
     return foods.reduce((acc: Record<string, Food[]>, f) => {
@@ -180,7 +186,8 @@ export function useComposer(apiBaseUrl = "") {
         if (!f) return null;
         const grams = Number(v.grams) || 0;
         const kcal = Math.round((grams / 100) * (Number(f.caloriesPer100g) || 0));
-        return { ...f, grams, kcal } as SelectedItem;
+        const proteines = Math.round((grams / 100) * (Number(f.proteinesPer100g) || 0) * 10) / 10;
+        return { ...f, grams, kcal, proteines } as SelectedItem;
       })
       .filter(Boolean) as SelectedItem[];
   }, [selected, foods]);
@@ -188,12 +195,14 @@ export function useComposer(apiBaseUrl = "") {
   const totals = useMemo<Totals>(() => {
     const perType: Record<string, number> = {};
     let total = 0;
+    let proteines = 0;
     for (const it of selectedList) {
       const key = it.typeName || "Autres";
       perType[key] = (perType[key] || 0) + it.kcal;
       total += it.kcal;
+      proteines += it.proteines;
     }
-    return { perType, total };
+    return { perType, total, proteines: Math.round(proteines * 10) / 10 };
   }, [selectedList]);
 
   const surplusKcal = useMemo(() => {
@@ -452,6 +461,7 @@ export function useComposer(apiBaseUrl = "") {
           nom: f.nom,
           typeName: f.typeName,
           caloriesPer100g: f.caloriesPer100g,
+          proteinesPer100g: f.proteinesPer100g,
           grams: f.grams,
         })),
       };
@@ -482,6 +492,7 @@ export function useComposer(apiBaseUrl = "") {
     setErr,
     dailyKcal,
     setDailyKcal,
+    mealBudgetKcal,
     activeMeals,
     composingMeal,
     toggleMeal,
@@ -504,5 +515,7 @@ export function useComposer(apiBaseUrl = "") {
     typeBadge,
     saveMeal,
     createFood,
+    wheyActive,
+    setWheyActive,
   };
 }

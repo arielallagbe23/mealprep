@@ -21,3 +21,6 @@ export const DAY_MEAL_SLOTS = [
 export type DayMealKey = (typeof DAY_MEAL_SLOTS)[number]["key"];
 
 export const DINNER_MAX_RATIO = 0.5;
+
+export const WHEY_SHAKER_KCAL = 180;
+export const WHEY_SHAKER_PROTEINES = 42;

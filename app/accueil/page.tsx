@@ -53,14 +53,14 @@ export default function Accueil() {
   href="/referentiel"
   className="block w-full py-3 px-6 rounded-lg bg-cyan-600 text-white font-semibold hover:bg-cyan-700 transition"
 >
-  Gestion des aliments
+  Référentiel aliments
 </Link>
 
 <Link
   href="/comptage-calories"
   className="block w-full py-3 px-6 rounded-lg bg-orange-600 text-white font-semibold hover:bg-orange-700 transition"
 >
-  Token comptage calories
+  Comptage calories
 </Link>
 
 

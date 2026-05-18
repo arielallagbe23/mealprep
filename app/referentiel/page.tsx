@@ -34,15 +34,15 @@ export default function ReferentielPage() {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [page, setPage] = useState(1);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [editForm, setEditForm] = useState<EditForm | null>(null);
-  const [actionErr, setActionErr] = useState<string | null>(null);
   const [newFoodName, setNewFoodName] = useState("");
   const [newFoodCalories, setNewFoodCalories] = useState("");
   const [newFoodTypeId, setNewFoodTypeId] = useState("");
   const [addingFood, setAddingFood] = useState(false);
   const [addFoodMsg, setAddFoodMsg] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState<EditForm | null>(null);
+  const [actionErr, setActionErr] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -142,6 +142,48 @@ export default function ReferentielPage() {
     }));
   }, [paginatedFoods]);
 
+  async function handleCreateFood(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const nom = newFoodName.trim();
+    const caloriesPer100g = Number(newFoodCalories);
+    const typeId = newFoodTypeId.trim();
+
+    if (!nom || !Number.isFinite(caloriesPer100g) || caloriesPer100g < 0 || !typeId) {
+      setActionErr("Nom, calories et type sont requis");
+      setAddFoodMsg(null);
+      return;
+    }
+
+    try {
+      setActionErr(null);
+      setAddFoodMsg(null);
+      setAddingFood(true);
+
+      const res = await fetch("/api/foods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ nom, caloriesPer100g, typeId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Ajout impossible");
+
+      const typeName = types.find((t) => t.id === typeId)?.nomtype || "Autres";
+      setFoods((prev) => [{ ...data, typeName }, ...prev]);
+      setNewFoodName("");
+      setNewFoodCalories("");
+      setNewFoodTypeId("");
+      setAddFoodMsg("Aliment ajouté");
+      setPage(1);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Erreur serveur";
+      setActionErr(message);
+      setAddFoodMsg(null);
+    } finally {
+      setAddingFood(false);
+    }
+  }
+
   function openEdit(food: Food) {
     setActionErr(null);
     setEditForm({
@@ -227,63 +269,6 @@ export default function ReferentielPage() {
     }
   }
 
-  async function handleCreateFood(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-
-    const nom = newFoodName.trim();
-    const calories = Number(newFoodCalories);
-    const typeId = newFoodTypeId.trim();
-
-    if (!nom || !Number.isFinite(calories) || calories < 0 || !typeId) {
-      setActionErr("Champs invalides pour l'ajout");
-      setAddFoodMsg(null);
-      return;
-    }
-
-    try {
-      setActionErr(null);
-      setAddFoodMsg(null);
-      setAddingFood(true);
-
-      const res = await fetch("/api/foods", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          nom,
-          caloriesPer100g: calories,
-          typeId,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Ajout impossible");
-
-      const typeName = types.find((t) => t.id === typeId)?.nomtype || "Autres";
-      setFoods((prev) => [
-        {
-          id: data.id,
-          nom,
-          caloriesPer100g: calories,
-          typeId,
-          typeName,
-        },
-        ...prev,
-      ]);
-
-      setNewFoodName("");
-      setNewFoodCalories("");
-      setNewFoodTypeId("");
-      setAddFoodMsg("Aliment ajouté");
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Erreur serveur";
-      setActionErr(message);
-      setAddFoodMsg(null);
-    } finally {
-      setAddingFood(false);
-    }
-  }
-
   return (
     <RequireAuth>
       <main className="min-h-screen bg-gray-900 text-white px-4 py-6">
@@ -293,7 +278,7 @@ export default function ReferentielPage() {
           <div className="rounded-xl border border-gray-700 bg-gray-800 p-4">
             <h1 className="text-2xl font-bold">Gestion des aliments</h1>
             <p className="text-sm text-gray-300 mt-1">
-              Ajoute, modifie et supprime les aliments et leurs types depuis Firestore.
+              Ajoute, modifie et supprime tes aliments avec leurs types.
             </p>
           </div>
 
@@ -311,50 +296,6 @@ export default function ReferentielPage() {
               <div className="text-2xl font-bold">{filteredFoods.length}</div>
             </div>
           </div>
-
-          <section className="rounded-xl border border-gray-700 bg-gray-800 p-4 space-y-3">
-            <h2 className="text-3xl font-bold">Ajouter un aliment</h2>
-            <form onSubmit={handleCreateFood} className="space-y-3">
-              <input
-                value={newFoodName}
-                onChange={(e) => setNewFoodName(e.target.value)}
-                placeholder="Nom (ex: Haricot vert)"
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2"
-              />
-              <input
-                type="number"
-                min={0}
-                value={newFoodCalories}
-                onChange={(e) => setNewFoodCalories(e.target.value)}
-                placeholder="Calories / 100g"
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2"
-              />
-              <select
-                value={newFoodTypeId}
-                onChange={(e) => setNewFoodTypeId(e.target.value)}
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2"
-              >
-                <option value="">Type d&apos;aliment</option>
-                {types.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.nomtype || t.id}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                disabled={addingFood}
-                className={`w-full rounded-lg px-3 py-3 text-white font-semibold ${
-                  addingFood
-                    ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                    : "bg-emerald-600 hover:bg-emerald-700"
-                }`}
-              >
-                {addingFood ? "Ajout..." : "Ajouter l'aliment"}
-              </button>
-            </form>
-            {addFoodMsg && <div className="text-sm text-emerald-300">{addFoodMsg}</div>}
-          </section>
 
           <div className="rounded-xl border border-gray-700 bg-gray-800 p-4 space-y-3">
             <h2 className="text-lg font-semibold">Filtres aliments</h2>
@@ -379,6 +320,54 @@ export default function ReferentielPage() {
               </select>
             </div>
           </div>
+
+          <section className="rounded-xl border border-gray-700 bg-gray-800 p-4">
+            <h2 className="text-lg font-semibold mb-3">Ajouter un aliment</h2>
+            <form
+              onSubmit={handleCreateFood}
+              className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_1fr_auto] gap-3"
+            >
+              <input
+                value={newFoodName}
+                onChange={(e) => setNewFoodName(e.target.value)}
+                placeholder="Nom (ex: Haricot vert)"
+                className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2"
+              />
+              <input
+                value={newFoodCalories}
+                onChange={(e) => setNewFoodCalories(e.target.value)}
+                type="number"
+                min={0}
+                step={1}
+                placeholder="Calories / 100g"
+                className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2"
+              />
+              <select
+                value={newFoodTypeId}
+                onChange={(e) => setNewFoodTypeId(e.target.value)}
+                className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2"
+              >
+                <option value="">Type d&apos;aliment</option>
+                {types.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nomtype || t.id}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                disabled={addingFood}
+                className={`rounded-lg px-4 py-2 font-semibold ${
+                  addingFood
+                    ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
+                {addingFood ? "Ajout..." : "Ajouter"}
+              </button>
+            </form>
+            {addFoodMsg && <p className="mt-2 text-sm text-emerald-300">{addFoodMsg}</p>}
+          </section>
 
           {loading && (
             <div className="rounded-lg border border-gray-700 bg-gray-800 p-4 text-gray-300">

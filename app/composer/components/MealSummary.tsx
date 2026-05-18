@@ -13,6 +13,7 @@ type Props = {
   dailyKcal: string;
   onSaveMeal: () => void;
   success: string | null;
+  wheyActive: boolean;
 };
 
 export default function MealSummary({
@@ -25,6 +26,7 @@ export default function MealSummary({
   dailyKcal,
   onSaveMeal,
   success,
+  wheyActive,
 }: Props) {
   const todayISO = () => {
     const d = new Date();
@@ -214,22 +216,21 @@ export default function MealSummary({
           Ton repas
         </h3>
 
-        <div className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
-          <span>Nombre de repas :</span>
-          <span className="font-semibold">{nbRepas}</span>
-
-          <div className="flex gap-2">
+        <div className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
+          <span>Nombre de repas</span>
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setNbRepas((n) => Math.max(1, n - 1))}
-              className="px-4 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 font-bold active:scale-95 transition"
+              className="w-11 h-11 rounded-full bg-rose-600 text-white text-2xl font-bold hover:bg-rose-700 active:scale-90 transition flex items-center justify-center"
             >
               –
             </button>
+            <span className="font-bold text-xl w-6 text-center">{nbRepas}</span>
             <button
               type="button"
               onClick={() => setNbRepas((n) => n + 1)}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-bold active:scale-95 transition"
+              className="w-11 h-11 rounded-full bg-blue-600 text-white text-2xl font-bold hover:bg-blue-700 active:scale-90 transition flex items-center justify-center"
             >
               +
             </button>
@@ -241,35 +242,32 @@ export default function MealSummary({
             Clique sur ⚡ Auto-quantités pour générer une proposition.
           </p>
         ) : (
-          <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
+          <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
             {selectedList.map((f) => {
               const gramsTotal = f.grams * nbRepas;
               const kcalTotal = f.kcal * nbRepas;
               return (
-                <li key={f.id} className="flex items-center justify-between gap-3">
-                  <span className="min-w-0 truncate">
-                    {f.nom} — {gramsTotal} g
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => updateFoodGrams(f.id, -5)}
-                        className="px-2 py-1 rounded bg-rose-600 text-white text-xs hover:bg-rose-700 active:scale-95 transition"
-                      >
-                        –
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateFoodGrams(f.id, 5)}
-                        className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 active:scale-95 transition"
-                      >
-                        +
-                      </button>
+                <li key={f.id} className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 flex-1 truncate">{f.nom}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => updateFoodGrams(f.id, -5)}
+                      className="w-10 h-10 rounded-full bg-rose-600 text-white text-xl font-bold hover:bg-rose-700 active:scale-90 transition flex items-center justify-center"
+                    >
+                      –
+                    </button>
+                    <div className="text-center min-w-[60px]">
+                      <div className="font-semibold">{gramsTotal} g</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{kcalTotal} kcal</div>
                     </div>
-                    <span className="font-medium min-w-[72px] text-right">
-                      {kcalTotal} kcal
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateFoodGrams(f.id, 5)}
+                      className="w-10 h-10 rounded-full bg-blue-600 text-white text-xl font-bold hover:bg-blue-700 active:scale-90 transition flex items-center justify-center"
+                    >
+                      +
+                    </button>
                   </div>
                 </li>
               );
@@ -289,7 +287,7 @@ export default function MealSummary({
         <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
           Comptage calories
         </div>
-        <div className="mt-2 grid grid-cols-3 gap-2 text-sm text-gray-800 dark:text-gray-100">
+        <div className="mt-2 grid grid-cols-4 gap-2 text-sm text-gray-800 dark:text-gray-100">
           <div className="rounded-md bg-blue-100 dark:bg-blue-500 px-2 py-1 text-center">
             <div className="text-xs text-gray-500 dark:text-gray-100">Total</div>
             <div className="font-semibold">{totals.total * nbRepas}</div>
@@ -303,6 +301,10 @@ export default function MealSummary({
             <div className="font-semibold">
               {Math.max(0, mealTargetKcal * nbRepas - totals.total * nbRepas)}
             </div>
+          </div>
+          <div className="rounded-md bg-gray-100 dark:bg-gray-800 px-2 py-1 text-center">
+            <div className="text-xs text-gray-500 dark:text-gray-400">Protéines</div>
+            <div className="font-semibold">{totals.proteines * nbRepas + (wheyActive ? 42 : 0)} g</div>
           </div>
         </div>
       </div>

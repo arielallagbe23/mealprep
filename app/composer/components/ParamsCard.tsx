@@ -2,11 +2,18 @@
 
 import type { ReactElement } from "react";
 import BackButton from "@/components/BackButton";
-import { DAY_MEAL_SLOTS, RATIOS, type DayMealKey } from "../constants";
+import {
+  DAY_MEAL_SLOTS,
+  RATIOS,
+  WHEY_SHAKER_KCAL,
+  WHEY_SHAKER_PROTEINES,
+  type DayMealKey,
+} from "../constants";
 
 type Props = {
   dailyKcal: string;
   setDailyKcal: (v: string) => void;
+  mealBudgetKcal: number;
   surplusKcal: number;
   activeMeals: Record<DayMealKey, boolean>;
   composingMeal: DayMealKey;
@@ -18,11 +25,14 @@ type Props = {
   err: string;
   onAutoQuantities: () => void;
   typeBadge: (type: string) => ReactElement;
+  wheyActive: boolean;
+  onToggleWhey: () => void;
 };
 
 export default function ParamsCard({
   dailyKcal,
   setDailyKcal,
+  mealBudgetKcal,
   surplusKcal,
   activeMeals,
   composingMeal,
@@ -34,9 +44,14 @@ export default function ParamsCard({
   err,
   onAutoQuantities,
   typeBadge,
+  wheyActive,
+  onToggleWhey,
 }: Props) {
   const currentMealLabel =
     DAY_MEAL_SLOTS.find((slot) => slot.key === composingMeal)?.label || "Repas";
+  const dailyBase = Number(dailyKcal) || 0;
+  const shakerPct =
+    wheyActive && dailyBase > 0 ? Math.round((WHEY_SHAKER_KCAL / dailyBase) * 1000) / 10 : 0;
 
   return (
     <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-4 shadow-sm">
@@ -59,6 +74,12 @@ export default function ParamsCard({
             className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </label>
+        <div className={`rounded-lg border px-3 py-2 text-xs ${wheyActive ? "border-amber-300/50 dark:border-amber-700/70 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200" : "border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400"}`}>
+          {wheyActive
+            ? <>Shaker whey ON: <span className="font-semibold">{WHEY_SHAKER_KCAL} kcal / {WHEY_SHAKER_PROTEINES}g protéines</span> · budget repas: <span className="font-semibold">{mealBudgetKcal} kcal</span></>
+            : <>Shaker whey OFF · budget repas: <span className="font-semibold">{mealBudgetKcal} kcal</span> (+{WHEY_SHAKER_KCAL} kcal remis)</>
+          }
+        </div>
 
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 space-y-2">
           <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">
@@ -66,6 +87,7 @@ export default function ParamsCard({
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400">
             Active les repas que tu manges, la répartition % est recalculée automatiquement.
+            Le shaker whey est ajouté automatiquement.
           </div>
 
           <div className="space-y-2">
@@ -121,6 +143,27 @@ export default function ParamsCard({
                 </div>
               );
             })}
+
+            <div
+              className={`flex items-center justify-between rounded-lg border px-3 py-2 cursor-pointer ${wheyActive ? "border-emerald-400/60 dark:border-emerald-700/60 bg-emerald-50/70 dark:bg-emerald-950/20" : "border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800"}`}
+              onClick={onToggleWhey}
+            >
+              <label className={`flex items-center gap-2 text-sm cursor-pointer ${wheyActive ? "text-emerald-900 dark:text-emerald-200" : "text-gray-500 dark:text-gray-400"}`}>
+                <input type="checkbox" checked={wheyActive} onChange={onToggleWhey} className="accent-emerald-500" />
+                <span>🥤 Shaker whey</span>
+                {wheyActive && <span className="text-xs text-emerald-600 dark:text-emerald-400">+{WHEY_SHAKER_PROTEINES}g protéines</span>}
+              </label>
+              <div className="flex items-center gap-2">
+                {wheyActive && (
+                  <span className="text-xs font-semibold px-2 py-1 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                    {shakerPct}%
+                  </span>
+                )}
+                <span className={`text-xs font-semibold px-2 py-1 rounded ${wheyActive ? "bg-emerald-200/80 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200" : "bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400"}`}>
+                  {wheyActive ? `${WHEY_SHAKER_KCAL} kcal` : "OFF"}
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="text-xs text-gray-500 dark:text-gray-400">
