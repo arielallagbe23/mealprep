@@ -475,7 +475,28 @@ export function useComposer(apiBaseUrl = "") {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Erreur d'enregistrement");
 
-      setSuccess("Repas enregistré ✅");
+      // Auto-log 1 portion to calorie tracker (silent fail)
+      const today = new Date().toISOString().split("T")[0];
+      const kcalToLog = totals.total;
+      const protToLog = Math.round(totals.proteines);
+      try {
+        await fetch("/api/calories/entry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            dateKey: today,
+            calories: kcalToLog,
+            proteines: protToLog,
+          }),
+        });
+      } catch {
+        // ne bloque pas la sauvegarde si le comptage échoue
+      }
+
+      setSuccess(
+        `Repas enregistré ✅ — +${kcalToLog} kcal · +${protToLog} g prot. ajoutés au comptage`
+      );
       setErr("");
     } catch (e: any) {
       alert(e.message || "Erreur");
