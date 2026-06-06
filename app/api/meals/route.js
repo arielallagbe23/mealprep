@@ -65,6 +65,7 @@ export async function POST(req) {
       nom: it.nom,
       typeName: it.typeName || "Autres",
       caloriesPer100g: Number(it.caloriesPer100g) || 0,
+      proteinesPer100g: Number(it.proteinesPer100g) || 0,
       gramsPerPortion: Number(it.grams) || Number(it.gramsPerPortion) || 0,
     }));
 

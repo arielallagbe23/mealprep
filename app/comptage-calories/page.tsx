@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, type FormEvent } from "react";
 import Link from "next/link";
 import RequireAuth from "@/components/RequireAuth";
 import { useAuth } from "@/components/useAuth";
+import Calendar from "@/app/comptage-calories/Calendar";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -15,7 +16,11 @@ type CalorieData = {
   limitHistory: LimitRecord[];
   dailyProteinGoal: number;
 };
-type EditState = { dateKey: string; calories: string; proteines: string } | null;
+type EditState = {
+  dateKey: string;
+  calories: string;
+  proteines: string;
+} | null;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -24,8 +29,14 @@ const PAGE_SIZE = 7;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getLimitForDate(dateKey: string, history: LimitRecord[], def: number): number {
-  const sorted = [...history].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
+function getLimitForDate(
+  dateKey: string,
+  history: LimitRecord[],
+  def: number,
+): number {
+  const sorted = [...history].sort((a, b) =>
+    b.effectiveDate.localeCompare(a.effectiveDate),
+  );
   return sorted.find((h) => h.effectiveDate <= dateKey)?.limitCalories ?? def;
 }
 
@@ -81,7 +92,11 @@ function EvolutionChart({
   limitLabel: string;
 }) {
   if (days.length === 0) {
-    return <p className="text-sm text-gray-500 py-4 text-center">Aucune donnée à afficher</p>;
+    return (
+      <p className="text-sm text-gray-500 py-4 text-center">
+        Aucune donnée à afficher
+      </p>
+    );
   }
 
   const W = 600;
@@ -92,17 +107,25 @@ function EvolutionChart({
 
   const hasLimit = limits.some((l) => l > 0);
   const maxVal = Math.max(...values, ...(hasLimit ? limits : []), 1);
-  const xOf = (i: number) => PAD.left + (i / Math.max(days.length - 1, 1)) * chartW;
+  const xOf = (i: number) =>
+    PAD.left + (i / Math.max(days.length - 1, 1)) * chartW;
   const yOf = (v: number) => PAD.top + chartH * (1 - v / maxVal);
 
   const valPts = days.map((_, i) => ({ x: xOf(i), y: yOf(values[i]) }));
   const valPath = smoothPath(valPts);
   const limPath = hasLimit
-    ? days.map((_, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(limits[i]).toFixed(1)}`).join(" ")
+    ? days
+        .map(
+          (_, i) =>
+            `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(limits[i]).toFixed(1)}`,
+        )
+        .join(" ")
     : "";
 
   const step = Math.ceil(maxVal / 4);
-  const yTicks = [0, step, step * 2, step * 3, maxVal].filter((v, i, a) => a.indexOf(v) === i);
+  const yTicks = [0, step, step * 2, step * 3, maxVal].filter(
+    (v, i, a) => a.indexOf(v) === i,
+  );
 
   const xLabels =
     days.length <= 6
@@ -110,7 +133,10 @@ function EvolutionChart({
       : [
           days[0],
           ...days.filter(
-            (_, i) => i > 0 && i < days.length - 1 && i % Math.ceil(days.length / 4) === 0
+            (_, i) =>
+              i > 0 &&
+              i < days.length - 1 &&
+              i % Math.ceil(days.length / 4) === 0,
           ),
           days[days.length - 1],
         ].filter((v, i, a) => a.indexOf(v) === i);
@@ -128,15 +154,35 @@ function EvolutionChart({
             strokeWidth="1"
             strokeDasharray="4 4"
           />
-          <text x={PAD.left - 6} y={yOf(v) + 4} textAnchor="end" fontSize="11" fill="#6b7280">
+          <text
+            x={PAD.left - 6}
+            y={yOf(v) + 4}
+            textAnchor="end"
+            fontSize="11"
+            fill="#6b7280"
+          >
             {v}
           </text>
         </g>
       ))}
-      {hasLimit && <path d={limPath} fill="none" stroke={limitColor} strokeWidth="2" />}
-      <path d={valPath} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinejoin="round" />
+      {hasLimit && (
+        <path d={limPath} fill="none" stroke={limitColor} strokeWidth="2" />
+      )}
+      <path
+        d={valPath}
+        fill="none"
+        stroke={lineColor}
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+      />
       {days.map((_, i) => (
-        <circle key={i} cx={xOf(i)} cy={yOf(values[i])} r="3.5" fill={lineColor} />
+        <circle
+          key={i}
+          cx={xOf(i)}
+          cy={yOf(values[i])}
+          r="3.5"
+          fill={lineColor}
+        />
       ))}
       {xLabels.map((d) => {
         const i = days.indexOf(d);
@@ -156,11 +202,23 @@ function EvolutionChart({
       {hasLimit && (
         <>
           <circle cx={PAD.left + 6} cy={H - 8} r="4" fill={limitColor} />
-          <text x={PAD.left + 14} y={H - 4} fontSize="9" fill="#9ca3af">{limitLabel}</text>
+          <text x={PAD.left + 14} y={H - 4} fontSize="9" fill="#9ca3af">
+            {limitLabel}
+          </text>
         </>
       )}
-      <circle cx={hasLimit ? PAD.left + 190 : PAD.left + 6} cy={H - 8} r="4" fill={lineColor} />
-      <text x={hasLimit ? PAD.left + 198 : PAD.left + 14} y={H - 4} fontSize="9" fill="#9ca3af">
+      <circle
+        cx={hasLimit ? PAD.left + 190 : PAD.left + 6}
+        cy={H - 8}
+        r="4"
+        fill={lineColor}
+      />
+      <text
+        x={hasLimit ? PAD.left + 198 : PAD.left + 14}
+        y={H - 4}
+        fontSize="9"
+        fill="#9ca3af"
+      >
         {lineLabel}
       </text>
     </svg>
@@ -204,7 +262,10 @@ export default function CalorieDashboard() {
   async function loadData() {
     try {
       setError("");
-      const res = await fetch("/api/calories", { credentials: "include", cache: "no-store" });
+      const res = await fetch("/api/calories", {
+        credentials: "include",
+        cache: "no-store",
+      });
       if (res.status === 401) {
         setError("Connexion requise");
         setLoading(false);
@@ -230,15 +291,20 @@ export default function CalorieDashboard() {
   // ── Derived data ───────────────────────────────────────────────────────────
 
   const entries = useMemo(
-    () => (data ? Object.entries(data.entries).sort(([a], [b]) => b.localeCompare(a)) : []),
-    [data]
+    () =>
+      data
+        ? Object.entries(data.entries).sort(([a], [b]) => b.localeCompare(a))
+        : [],
+    [data],
   );
 
   const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
   const pageEntries = entries.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const todayEntry = data?.entries[TODAY] ?? { calories: 0, proteines: 0 };
-  const limitToday = data ? getLimitForDate(TODAY, data.limitHistory, data.dailyLimit) : 2000;
+  const limitToday = data
+    ? getLimitForDate(TODAY, data.limitHistory, data.dailyLimit)
+    : 2000;
   const protGoal = data?.dailyProteinGoal ?? 0;
 
   const calRemaining = limitToday - todayEntry.calories;
@@ -247,7 +313,8 @@ export default function CalorieDashboard() {
   const daysTracked = entries.length;
   const daysCalOk = data
     ? entries.filter(
-        ([dk, e]) => e.calories <= getLimitForDate(dk, data.limitHistory, data.dailyLimit)
+        ([dk, e]) =>
+          e.calories <= getLimitForDate(dk, data.limitHistory, data.dailyLimit),
       ).length
     : 0;
   const daysProtOk =
@@ -257,12 +324,15 @@ export default function CalorieDashboard() {
 
   // Chart data (last 30 days)
   const chartDays = useMemo(
-    () => Object.keys(data?.entries ?? {}).sort().slice(-30),
-    [data]
+    () =>
+      Object.keys(data?.entries ?? {})
+        .sort()
+        .slice(-30),
+    [data],
   );
   const calValues = chartDays.map((d) => data?.entries[d]?.calories ?? 0);
   const calLimits = chartDays.map((d) =>
-    data ? getLimitForDate(d, data.limitHistory, data.dailyLimit) : 2000
+    data ? getLimitForDate(d, data.limitHistory, data.dailyLimit) : 2000,
   );
   const protValues = chartDays.map((d) => data?.entries[d]?.proteines ?? 0);
   const protLimits = chartDays.map(() => data?.dailyProteinGoal ?? 0);
@@ -289,7 +359,7 @@ export default function CalorieDashboard() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erreur");
       setAddMsg(
-        `Ajouté. Total ${fmtDateLong(addDate)} : ${json.calories} kcal${json.proteines ? ` · ${json.proteines} g prot.` : ""}`
+        `Ajouté. Total ${fmtDateLong(addDate)} : ${json.calories} kcal${json.proteines ? ` · ${json.proteines} g prot.` : ""}`,
       );
       setAddCal("");
       setAddProt("");
@@ -315,7 +385,10 @@ export default function CalorieDashboard() {
     if (!editState) return;
     setEditMsg("");
     const newCalories = Number(editState.calories);
-    const newProteines = editState.proteines.trim() !== "" ? Number(editState.proteines) : undefined;
+    const newProteines =
+      editState.proteines.trim() !== ""
+        ? Number(editState.proteines)
+        : undefined;
 
     if (!Number.isFinite(newCalories) || newCalories <= 0) {
       setEditMsg("Calories invalides");
@@ -345,11 +418,16 @@ export default function CalorieDashboard() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ limitCalories: Number(limitVal), effectiveDate: limitDate }),
+        body: JSON.stringify({
+          limitCalories: Number(limitVal),
+          effectiveDate: limitDate,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erreur");
-      setLimitMsg(`Limite enregistrée : ${json.dailyLimit} kcal à partir du ${fmtDateLong(limitDate)}`);
+      setLimitMsg(
+        `Limite enregistrée : ${json.dailyLimit} kcal à partir du ${fmtDateLong(limitDate)}`,
+      );
       setLimitVal("");
       await loadData();
     } catch (err: unknown) {
@@ -388,7 +466,6 @@ export default function CalorieDashboard() {
     <RequireAuth>
       <main className="min-h-screen bg-gray-900 px-4 py-8 text-white">
         <div className="max-w-3xl mx-auto space-y-5">
-
           {/* Header */}
           <div className="rounded-2xl border border-gray-700 bg-gray-800 p-5">
             <p className="text-xs font-semibold uppercase tracking-widest text-green-400 mb-1">
@@ -396,10 +473,14 @@ export default function CalorieDashboard() {
             </p>
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <div>
-                <h1 className="text-2xl font-bold text-white">Comptage simple, jour après jour</h1>
+                <h1 className="text-2xl font-bold text-white">
+                  Comptage simple, jour après jour
+                </h1>
                 <p className="text-sm text-gray-400 mt-1">
                   Date du jour :{" "}
-                  <span className="font-semibold text-white">{fmtDateLong(TODAY)}</span>
+                  <span className="font-semibold text-white">
+                    {fmtDateLong(TODAY)}
+                  </span>
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -417,7 +498,9 @@ export default function CalorieDashboard() {
           </div>
 
           {loading && (
-            <p className="text-gray-400 text-sm text-center py-8">Chargement…</p>
+            <p className="text-gray-400 text-sm text-center py-8">
+              Chargement…
+            </p>
           )}
 
           {error && (
@@ -430,15 +513,18 @@ export default function CalorieDashboard() {
             <>
               {/* ── Objectives row ── */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
                 {/* Objectif quotidien (calories + protéines) */}
                 <div className="rounded-2xl border border-gray-700 bg-gray-800 p-5 space-y-4">
-                  <h2 className="font-semibold text-white">Objectif quotidien</h2>
+                  <h2 className="font-semibold text-white">
+                    Objectif quotidien
+                  </h2>
 
                   {/* Calorie limit */}
                   <form onSubmit={handleLimitUpdate} className="space-y-3">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Date d&apos;effet</label>
+                      <label className="block text-xs text-gray-400 mb-1">
+                        Date d&apos;effet
+                      </label>
                       <input
                         type="date"
                         value={limitDate}
@@ -447,7 +533,9 @@ export default function CalorieDashboard() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Limite calories / jour</label>
+                      <label className="block text-xs text-gray-400 mb-1">
+                        Limite calories / jour
+                      </label>
                       <input
                         type="number"
                         min="1"
@@ -463,22 +551,30 @@ export default function CalorieDashboard() {
                       disabled={limitLoading}
                       className="w-full rounded-lg bg-green-500 hover:bg-green-600 disabled:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 transition"
                     >
-                      {limitLoading ? "Enregistrement…" : "Enregistrer la limite"}
+                      {limitLoading
+                        ? "Enregistrement…"
+                        : "Enregistrer la limite"}
                     </button>
-                    {limitMsg && <p className="text-xs text-gray-400">{limitMsg}</p>}
+                    {limitMsg && (
+                      <p className="text-xs text-gray-400">{limitMsg}</p>
+                    )}
                   </form>
 
                   <div className="border-t border-gray-700 pt-4">
                     {/* Protein goal */}
                     <form onSubmit={handleProtGoalUpdate} className="space-y-3">
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Objectif protéines / jour (g)</label>
+                        <label className="block text-xs text-gray-400 mb-1">
+                          Objectif protéines / jour (g)
+                        </label>
                         <input
                           type="number"
                           min="0"
                           value={protGoalVal}
                           onChange={(e) => setProtGoalVal(e.target.value)}
-                          placeholder={protGoal > 0 ? `Actuel : ${protGoal} g` : "Ex: 150"}
+                          placeholder={
+                            protGoal > 0 ? `Actuel : ${protGoal} g` : "Ex: 150"
+                          }
                           required
                           className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-500"
                         />
@@ -488,22 +584,36 @@ export default function CalorieDashboard() {
                         disabled={protGoalLoading}
                         className="w-full rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 px-4 py-2 text-sm font-semibold text-white transition"
                       >
-                        {protGoalLoading ? "Enregistrement…" : "Enregistrer l'objectif protéines"}
+                        {protGoalLoading
+                          ? "Enregistrement…"
+                          : "Enregistrer l'objectif protéines"}
                       </button>
-                      {protGoalMsg && <p className="text-xs text-gray-400">{protGoalMsg}</p>}
+                      {protGoalMsg && (
+                        <p className="text-xs text-gray-400">{protGoalMsg}</p>
+                      )}
                     </form>
                   </div>
 
-                  <p className="text-xs text-gray-500">Chaque changement est ajouté à l&apos;historique des limites.</p>
+                  <p className="text-xs text-gray-500">
+                    Chaque changement est ajouté à l&apos;historique des
+                    limites.
+                  </p>
                 </div>
 
                 {/* Ajout repas */}
                 <div className="rounded-2xl border border-gray-700 bg-gray-800 p-5 space-y-4">
-                  <h2 className="font-semibold text-white">Ajout repas <span className="text-gray-400 font-normal text-sm">(cumul par jour)</span></h2>
+                  <h2 className="font-semibold text-white">
+                    Ajout repas{" "}
+                    <span className="text-gray-400 font-normal text-sm">
+                      (cumul par jour)
+                    </span>
+                  </h2>
 
                   <form onSubmit={handleAddEntry} className="space-y-3">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Date</label>
+                      <label className="block text-xs text-gray-400 mb-1">
+                        Date
+                      </label>
                       <input
                         type="date"
                         value={addDate}
@@ -512,7 +622,9 @@ export default function CalorieDashboard() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Calories (kcal)</label>
+                      <label className="block text-xs text-gray-400 mb-1">
+                        Calories (kcal)
+                      </label>
                       <input
                         type="number"
                         min="1"
@@ -524,7 +636,10 @@ export default function CalorieDashboard() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Protéines (g) <span className="text-gray-600">— optionnel</span></label>
+                      <label className="block text-xs text-gray-400 mb-1">
+                        Protéines (g){" "}
+                        <span className="text-gray-600">— optionnel</span>
+                      </label>
                       <input
                         type="number"
                         min="0"
@@ -553,53 +668,82 @@ export default function CalorieDashboard() {
                   </form>
 
                   {addMsg && <p className="text-xs text-gray-400">{addMsg}</p>}
-                  <p className="text-xs text-gray-500">Chaque ajout augmente le total de la date sélectionnée.</p>
+                  <p className="text-xs text-gray-500">
+                    Chaque ajout augmente le total de la date sélectionnée.
+                  </p>
                 </div>
               </div>
 
               {/* ── Today + Global stats ── */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
                 {/* Aujourd'hui */}
                 <div className="rounded-2xl border border-gray-700 bg-gray-800 p-5 space-y-3">
                   <h2 className="font-semibold text-white">Aujourd&apos;hui</h2>
 
                   {/* Calories */}
                   <div>
-                    <p className="text-3xl font-bold text-white">{todayEntry.calories} <span className="text-lg font-normal text-gray-400">kcal</span></p>
-                    <p className="text-sm text-gray-400 mt-1">Limite du jour : {limitToday} kcal</p>
+                    <p className="text-3xl font-bold text-white">
+                      {todayEntry.calories}{" "}
+                      <span className="text-lg font-normal text-gray-400">
+                        kcal
+                      </span>
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Limite du jour : {limitToday} kcal
+                    </p>
                     {calRemaining >= 0 ? (
-                      <p className="text-sm font-semibold text-green-400">{calRemaining} kcal restantes avant la limite</p>
+                      <p className="text-sm font-semibold text-green-400">
+                        {calRemaining} kcal restantes avant la limite
+                      </p>
                     ) : (
-                      <p className="text-sm font-semibold text-red-400">{Math.abs(calRemaining)} kcal au-dessus de la limite</p>
+                      <p className="text-sm font-semibold text-red-400">
+                        {Math.abs(calRemaining)} kcal au-dessus de la limite
+                      </p>
                     )}
                   </div>
 
                   {/* Protéines */}
                   {protGoal > 0 && (
                     <div className="border-t border-gray-700 pt-3">
-                      <p className="text-2xl font-bold text-white">{todayEntry.proteines} <span className="text-base font-normal text-gray-400">g prot.</span></p>
-                      <p className="text-sm text-gray-400 mt-1">Objectif : {protGoal} g</p>
+                      <p className="text-2xl font-bold text-white">
+                        {todayEntry.proteines}{" "}
+                        <span className="text-base font-normal text-gray-400">
+                          g prot.
+                        </span>
+                      </p>
+                      <p className="text-sm text-gray-400 mt-1">
+                        Objectif : {protGoal} g
+                      </p>
                       {protRemaining !== null && protRemaining > 0 ? (
-                        <p className="text-sm font-semibold text-blue-400">{protRemaining} g restants avant l&apos;objectif</p>
+                        <p className="text-sm font-semibold text-blue-400">
+                          {protRemaining} g restants avant l&apos;objectif
+                        </p>
                       ) : protRemaining !== null && protRemaining <= 0 ? (
-                        <p className="text-sm font-semibold text-green-400">Objectif protéines atteint ✓</p>
+                        <p className="text-sm font-semibold text-green-400">
+                          Objectif protéines atteint ✓
+                        </p>
                       ) : null}
 
                       {/* Progress bar */}
                       <div className="mt-2 h-1.5 rounded-full bg-gray-700 overflow-hidden">
                         <div
                           className="h-full rounded-full bg-blue-400 transition-all"
-                          style={{ width: `${Math.min(100, (todayEntry.proteines / protGoal) * 100).toFixed(1)}%` }}
+                          style={{
+                            width: `${Math.min(100, (todayEntry.proteines / protGoal) * 100).toFixed(1)}%`,
+                          }}
                         />
                       </div>
                     </div>
                   )}
 
                   {data.entries[TODAY] ? (
-                    <p className="text-xs text-gray-500">Ligne du jour : enregistrée ({fmtDateLong(TODAY)})</p>
+                    <p className="text-xs text-gray-500">
+                      Ligne du jour : enregistrée ({fmtDateLong(TODAY)})
+                    </p>
                   ) : (
-                    <p className="text-xs text-gray-500">Aucune entrée pour aujourd&apos;hui</p>
+                    <p className="text-xs text-gray-500">
+                      Aucune entrée pour aujourd&apos;hui
+                    </p>
                   )}
                 </div>
 
@@ -609,36 +753,61 @@ export default function CalorieDashboard() {
 
                   <div className="space-y-1">
                     <p className="text-sm text-gray-300">
-                      <span className="text-green-400 font-semibold">Jours respectés (cal.) :</span> {daysCalOk}
+                      <span className="text-green-400 font-semibold">
+                        Jours respectés (cal.) :
+                      </span>{" "}
+                      {daysCalOk}
                     </p>
                     <p className="text-sm text-gray-300">
-                      <span className="text-red-400 font-semibold">Jours dépassés (cal.) :</span> {daysTracked - daysCalOk}
+                      <span className="text-red-400 font-semibold">
+                        Jours dépassés (cal.) :
+                      </span>{" "}
+                      {daysTracked - daysCalOk}
                     </p>
                   </div>
 
                   {daysProtOk !== null && (
                     <div className="border-t border-gray-700 pt-3 space-y-1">
                       <p className="text-sm text-gray-300">
-                        <span className="text-green-400 font-semibold">Objectif prot. atteint :</span> {daysProtOk} jours
+                        <span className="text-green-400 font-semibold">
+                          Objectif prot. atteint :
+                        </span>{" "}
+                        {daysProtOk} jours
                       </p>
                       <p className="text-sm text-gray-300">
-                        <span className="text-blue-400 font-semibold">Objectif prot. non atteint :</span> {daysTracked - daysProtOk} jours
+                        <span className="text-blue-400 font-semibold">
+                          Objectif prot. non atteint :
+                        </span>{" "}
+                        {daysTracked - daysProtOk} jours
                       </p>
                     </div>
                   )}
 
                   <div className="border-t border-gray-700 pt-3">
                     <p className="text-sm text-gray-300">
-                      Nombre de jours suivis : <span className="font-semibold text-white">{daysTracked}</span>
+                      Nombre de jours suivis :{" "}
+                      <span className="font-semibold text-white">
+                        {daysTracked}
+                      </span>
                     </p>
                   </div>
                 </div>
               </div>
 
+              {/* ── Calendrier ── */}
+              <Calendar
+                entries={data.entries}
+                limitHistory={data.limitHistory}
+                dailyLimit={data.dailyLimit}
+                dailyProteinGoal={data.dailyProteinGoal}
+              />
+
               {/* ── Calorie chart ── */}
               {chartDays.length > 0 && (
                 <div className="rounded-2xl border border-gray-700 bg-gray-800 p-5">
-                  <h2 className="font-semibold text-white mb-4">Évolution calories</h2>
+                  <h2 className="font-semibold text-white mb-4">
+                    Évolution calories
+                  </h2>
                   <EvolutionChart
                     days={chartDays}
                     values={calValues}
@@ -654,7 +823,9 @@ export default function CalorieDashboard() {
               {/* ── Protein chart ── */}
               {chartDays.length > 0 && (
                 <div className="rounded-2xl border border-gray-700 bg-gray-800 p-5">
-                  <h2 className="font-semibold text-white mb-4">Évolution protéines</h2>
+                  <h2 className="font-semibold text-white mb-4">
+                    Évolution protéines
+                  </h2>
                   <EvolutionChart
                     days={chartDays}
                     values={protValues}
@@ -670,17 +841,23 @@ export default function CalorieDashboard() {
               {/* ── Historique des limites ── */}
               {data.limitHistory.length > 0 && (
                 <div className="rounded-2xl border border-gray-700 bg-gray-800 p-5">
-                  <h2 className="font-semibold text-white mb-3">Historique des limites</h2>
+                  <h2 className="font-semibold text-white mb-3">
+                    Historique des limites
+                  </h2>
                   <div className="space-y-1.5">
                     {[...data.limitHistory]
-                      .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))
+                      .sort((a, b) =>
+                        b.effectiveDate.localeCompare(a.effectiveDate),
+                      )
                       .map((h) => (
                         <div
                           key={h.effectiveDate}
                           className="flex justify-between text-sm text-gray-300"
                         >
                           <span>{fmtDateLong(h.effectiveDate)}</span>
-                          <span className="font-semibold text-white">{h.limitCalories} kcal</span>
+                          <span className="font-semibold text-white">
+                            {h.limitCalories} kcal
+                          </span>
                         </div>
                       ))}
                   </div>
@@ -690,13 +867,22 @@ export default function CalorieDashboard() {
               {/* ── Table ── */}
               <div className="rounded-2xl border border-gray-700 bg-gray-800 p-5">
                 <h2 className="font-semibold text-white mb-4">
-                  Table calories{entries.length > 0 && <span className="text-gray-400 font-normal text-sm ml-2">({entries.length} entrées)</span>}
+                  Table calories
+                  {entries.length > 0 && (
+                    <span className="text-gray-400 font-normal text-sm ml-2">
+                      ({entries.length} entrées)
+                    </span>
+                  )}
                 </h2>
 
-                {editMsg && <p className="text-xs text-red-400 mb-2">{editMsg}</p>}
+                {editMsg && (
+                  <p className="text-xs text-red-400 mb-2">{editMsg}</p>
+                )}
 
                 {entries.length === 0 ? (
-                  <p className="text-sm text-gray-500">Aucune entrée pour l&apos;instant.</p>
+                  <p className="text-sm text-gray-500">
+                    Aucune entrée pour l&apos;instant.
+                  </p>
                 ) : (
                   <>
                     <div className="overflow-x-auto">
@@ -713,12 +899,20 @@ export default function CalorieDashboard() {
                         </thead>
                         <tbody className="divide-y divide-gray-700">
                           {pageEntries.map(([dk, entry]) => {
-                            const lim = getLimitForDate(dk, data.limitHistory, data.dailyLimit);
+                            const lim = getLimitForDate(
+                              dk,
+                              data.limitHistory,
+                              data.dailyLimit,
+                            );
                             const calOk = entry.calories <= lim;
-                            const protOk = protGoal > 0 ? entry.proteines >= protGoal : null;
+                            const protOk =
+                              protGoal > 0 ? entry.proteines >= protGoal : null;
                             const isEditing = editState?.dateKey === dk;
                             return (
-                              <tr key={dk} className="hover:bg-gray-750 transition">
+                              <tr
+                                key={dk}
+                                className="hover:bg-gray-750 transition"
+                              >
                                 <td className="py-3 pr-3 text-gray-200 font-medium">
                                   {fmtDateLong(dk)}
                                 </td>
@@ -729,18 +923,29 @@ export default function CalorieDashboard() {
                                       min="1"
                                       value={editState.calories}
                                       onChange={(e) =>
-                                        setEditState({ ...editState, calories: e.target.value })
+                                        setEditState({
+                                          ...editState,
+                                          calories: e.target.value,
+                                        })
                                       }
                                       className="w-20 rounded border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-white"
                                       autoFocus
                                     />
                                   ) : (
-                                    <span className={calOk ? "text-white" : "text-red-400 font-semibold"}>
+                                    <span
+                                      className={
+                                        calOk
+                                          ? "text-white"
+                                          : "text-red-400 font-semibold"
+                                      }
+                                    >
                                       {entry.calories} kcal
                                     </span>
                                   )}
                                 </td>
-                                <td className="py-3 pr-3 text-gray-400">{lim} kcal</td>
+                                <td className="py-3 pr-3 text-gray-400">
+                                  {lim} kcal
+                                </td>
                                 <td className="py-3 pr-3">
                                   {isEditing ? (
                                     <input
@@ -748,35 +953,53 @@ export default function CalorieDashboard() {
                                       min="0"
                                       value={editState.proteines}
                                       onChange={(e) =>
-                                        setEditState({ ...editState, proteines: e.target.value })
+                                        setEditState({
+                                          ...editState,
+                                          proteines: e.target.value,
+                                        })
                                       }
                                       className="w-16 rounded border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-white"
                                     />
                                   ) : (
-                                    <span className={
-                                      protOk === true ? "text-green-400 font-semibold" :
-                                      protOk === false ? "text-blue-300" : "text-gray-400"
-                                    }>
-                                      {entry.proteines > 0 ? `${entry.proteines} g` : "—"}
+                                    <span
+                                      className={
+                                        protOk === true
+                                          ? "text-green-400 font-semibold"
+                                          : protOk === false
+                                            ? "text-blue-300"
+                                            : "text-gray-400"
+                                      }
+                                    >
+                                      {entry.proteines > 0
+                                        ? `${entry.proteines} g`
+                                        : "—"}
                                     </span>
                                   )}
                                 </td>
                                 <td className="py-3 pr-3">
                                   <div className="flex flex-col gap-1">
-                                    <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${
-                                      calOk
-                                        ? "bg-green-900/50 text-green-400 border border-green-800"
-                                        : "bg-orange-900/50 text-orange-400 border border-orange-800"
-                                    }`}>
-                                      {calOk ? "Sous la limite du jour" : "Au-dessus de la limite"}
+                                    <span
+                                      className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${
+                                        calOk
+                                          ? "bg-green-900/50 text-green-400 border border-green-800"
+                                          : "bg-orange-900/50 text-orange-400 border border-orange-800"
+                                      }`}
+                                    >
+                                      {calOk
+                                        ? "Sous la limite du jour"
+                                        : "Au-dessus de la limite"}
                                     </span>
                                     {protOk !== null && (
-                                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${
-                                        protOk
-                                          ? "bg-green-900/50 text-green-400 border border-green-800"
-                                          : "bg-blue-900/50 text-blue-400 border border-blue-800"
-                                      }`}>
-                                        {protOk ? "Objectif prot. atteint" : "Prot. insuffisantes"}
+                                      <span
+                                        className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${
+                                          protOk
+                                            ? "bg-green-900/50 text-green-400 border border-green-800"
+                                            : "bg-blue-900/50 text-blue-400 border border-blue-800"
+                                        }`}
+                                      >
+                                        {protOk
+                                          ? "Objectif prot. atteint"
+                                          : "Prot. insuffisantes"}
                                       </span>
                                     )}
                                   </div>
@@ -791,7 +1014,10 @@ export default function CalorieDashboard() {
                                         Sauvegarder
                                       </button>
                                       <button
-                                        onClick={() => { setEditState(null); setEditMsg(""); }}
+                                        onClick={() => {
+                                          setEditState(null);
+                                          setEditMsg("");
+                                        }}
                                         className="rounded px-3 py-1.5 text-xs border border-gray-600 text-gray-300 hover:bg-gray-700"
                                       >
                                         Annuler
@@ -804,7 +1030,10 @@ export default function CalorieDashboard() {
                                           setEditState({
                                             dateKey: dk,
                                             calories: String(entry.calories),
-                                            proteines: entry.proteines > 0 ? String(entry.proteines) : "",
+                                            proteines:
+                                              entry.proteines > 0
+                                                ? String(entry.proteines)
+                                                : "",
                                           })
                                         }
                                         className="rounded px-3 py-1.5 text-xs font-semibold border border-gray-600 text-gray-200 hover:bg-gray-700 transition"
@@ -841,7 +1070,9 @@ export default function CalorieDashboard() {
                             ←
                           </button>
                           <button
-                            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                            onClick={() =>
+                              setPage((p) => Math.min(totalPages - 1, p + 1))
+                            }
                             disabled={page >= totalPages - 1}
                             className="px-3 py-1.5 text-xs rounded-lg border border-gray-600 disabled:opacity-40 hover:bg-gray-700 transition"
                           >

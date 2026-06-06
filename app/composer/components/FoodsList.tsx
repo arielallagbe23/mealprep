@@ -45,7 +45,7 @@ export default function FoodsList({
           <h2 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">
             {type}
           </h2>
-          <ul className="space-y-2">
+          <ul className="space-y-4">
             {items.map((item) => {
               const isSel = !!selected[item.id];
               const grams = selected[item.id]?.grams ?? 0;
@@ -61,6 +61,9 @@ export default function FoodsList({
                     </p>
                     <p className="text-xs text-gray-500">
                       {item.caloriesPer100g} kcal/100g
+                      {item.proteinesPer100g != null && (
+                        <span className="ml-2">· {item.proteinesPer100g}g prot/100g</span>
+                      )}
                     </p>
                   </div>
 

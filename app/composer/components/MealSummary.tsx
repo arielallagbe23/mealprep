@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import type { SelectedItem, Totals } from "../types";
-import { WHEY_SHAKER_PROTEINES } from "../constants";
 
 type Props = {
   selectedList: SelectedItem[];
@@ -11,10 +11,8 @@ type Props = {
   updateFoodGrams: (id: string, delta: number) => void;
   totals: Totals;
   mealTargetKcal: number;
-  dailyKcal: string;
   onSaveMeal: () => void;
   success: string | null;
-  wheyActive: boolean;
 };
 
 export default function MealSummary({
@@ -26,11 +24,40 @@ export default function MealSummary({
   mealTargetKcal,
   onSaveMeal,
   success,
-  wheyActive,
 }: Props) {
+  const [logging, setLogging] = useState(false);
+  const [logSuccess, setLogSuccess] = useState<string | null>(null);
+  const [logErr, setLogErr] = useState<string | null>(null);
+
   const kcalTotal = totals.total * nbRepas;
-  const protTotal = Math.round((totals.proteines + (wheyActive ? WHEY_SHAKER_PROTEINES : 0)) * nbRepas * 10) / 10;
-  const kcalRemaining = Math.max(0, mealTargetKcal * nbRepas - kcalTotal);
+  const kcalCible = mealTargetKcal * nbRepas;
+  const protTotal = Math.round(totals.proteines * nbRepas * 10) / 10;
+  const kcalRemaining = Math.max(0, kcalCible - kcalTotal);
+
+  async function handleLogCalories() {
+    if (kcalTotal <= 0) return;
+    const dateKey = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 10);
+    setLogging(true);
+    setLogSuccess(null);
+    setLogErr(null);
+    try {
+      const res = await fetch("/api/calorie-auth/entry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ dateKey, calories: kcalTotal }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Erreur");
+      setLogSuccess(`✅ ${kcalTotal} kcal ajoutées au comptage`);
+    } catch (e: any) {
+      setLogErr(e.message || "Erreur");
+    } finally {
+      setLogging(false);
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -101,7 +128,7 @@ export default function MealSummary({
         {/* Totaux */}
         <div className="mt-3 flex justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
           <span>Total</span>
-          <span>{kcalTotal} / {mealTargetKcal * nbRepas} kcal</span>
+          <span>{kcalTotal} / {kcalCible} kcal</span>
         </div>
       </div>
 
@@ -117,7 +144,7 @@ export default function MealSummary({
           </div>
           <div className="rounded-md bg-gray-100 dark:bg-gray-800 px-2 py-1 text-center">
             <div className="text-xs text-gray-500 dark:text-gray-400">Cible</div>
-            <div className="font-semibold">{mealTargetKcal * nbRepas}</div>
+            <div className="font-semibold">{kcalCible}</div>
           </div>
           <div className="rounded-md bg-gray-100 dark:bg-gray-800 px-2 py-1 text-center">
             <div className="text-xs text-gray-500 dark:text-gray-400">Restant</div>
@@ -132,6 +159,29 @@ export default function MealSummary({
 
       {/* Actions */}
       <div className="grid grid-cols-1 gap-2">
+        <button
+          disabled={selectedList.length === 0 || kcalTotal <= 0 || logging}
+          className={`w-full py-3 rounded-xl font-semibold text-white ${
+            selectedList.length === 0 || kcalTotal <= 0 || logging
+              ? "bg-gray-600 cursor-not-allowed"
+              : "bg-orange-600 hover:bg-orange-700"
+          }`}
+          onClick={handleLogCalories}
+        >
+          {logging ? "Ajout en cours…" : `📊 Ajouter ${kcalTotal} kcal au comptage`}
+        </button>
+
+        {logSuccess && (
+          <div className="rounded-lg border border-emerald-700 bg-emerald-900/40 text-emerald-200 px-3 py-2 text-sm">
+            {logSuccess}
+          </div>
+        )}
+        {logErr && (
+          <div className="rounded-lg border border-rose-700 bg-rose-900/40 text-rose-200 px-3 py-2 text-sm">
+            {logErr}
+          </div>
+        )}
+
         <button
           disabled={mealTargetKcal <= 0 || selectedList.length === 0}
           className={`w-full py-3 rounded-xl font-semibold text-white ${
@@ -149,13 +199,6 @@ export default function MealSummary({
             {success}
           </div>
         )}
-
-        <Link
-          href="/comptage-calories"
-          className="block w-full text-center py-3 rounded-xl font-semibold text-white bg-orange-600 hover:bg-orange-700"
-        >
-          📊 Voir le comptage calories
-        </Link>
 
         <Link
           href="/meals"

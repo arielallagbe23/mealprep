@@ -10,6 +10,7 @@ type Food = {
   id: string;
   nom?: string;
   caloriesPer100g?: number;
+  proteinesPer100g?: number;
   typeId?: string;
   typeName?: string;
 };
@@ -23,6 +24,7 @@ type EditForm = {
   id: string;
   nom: string;
   caloriesPer100g: string;
+  proteinesPer100g: string;
   typeId: string;
 };
 
@@ -190,6 +192,7 @@ export default function ReferentielPage() {
       id: food.id,
       nom: food.nom || "",
       caloriesPer100g: String(Number(food.caloriesPer100g || 0)),
+      proteinesPer100g: String(Number(food.proteinesPer100g || 0)),
       typeId: food.typeId || "",
     });
   }
@@ -221,6 +224,7 @@ export default function ReferentielPage() {
 
     const nom = editForm.nom.trim();
     const calories = Number(editForm.caloriesPer100g);
+    const proteines = Number(editForm.proteinesPer100g);
     const typeId = editForm.typeId.trim();
 
     if (!nom || !Number.isFinite(calories) || calories < 0 || !typeId) {
@@ -238,6 +242,7 @@ export default function ReferentielPage() {
         body: JSON.stringify({
           nom,
           caloriesPer100g: calories,
+          proteinesPer100g: Number.isFinite(proteines) ? proteines : 0,
           typeId,
         }),
       });
@@ -254,6 +259,7 @@ export default function ReferentielPage() {
                 ...f,
                 nom,
                 caloriesPer100g: calories,
+                proteinesPer100g: Number.isFinite(proteines) ? proteines : 0,
                 typeId,
                 typeName: nextTypeName,
               }
@@ -422,13 +428,14 @@ export default function ReferentielPage() {
                         <th className="py-2 pr-2">Nom</th>
                         <th className="py-2 pr-2">Type</th>
                         <th className="py-2 pr-2">kcal/100g</th>
+                        <th className="py-2 pr-2">prot/100g</th>
                         <th className="py-2">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {groupedFoods.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="py-3 text-gray-400">
+                          <td colSpan={5} className="py-3 text-gray-400">
                             Aucun aliment.
                           </td>
                         </tr>
@@ -450,6 +457,7 @@ export default function ReferentielPage() {
                               <td className="py-2 pr-2 font-medium">{f.nom || "—"}</td>
                               <td className="py-2 pr-2 text-gray-300">{f.typeName || "Autres"}</td>
                               <td className="py-2 pr-2">{Number(f.caloriesPer100g || 0)}</td>
+                              <td className="py-2 pr-2 text-emerald-400">{f.proteinesPer100g != null ? Number(f.proteinesPer100g) : "—"}</td>
                               <td className="py-2">
                                 <div className="flex items-center gap-2">
                                   <button
@@ -542,6 +550,21 @@ export default function ReferentielPage() {
                     onChange={(e) =>
                       setEditForm((prev) =>
                         prev ? { ...prev, caloriesPer100g: e.target.value } : prev
+                      )
+                    }
+                    className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2"
+                  />
+                </label>
+
+                <label className="block text-sm text-gray-300">
+                  Protéines / 100g
+                  <input
+                    type="number"
+                    min={0}
+                    value={editForm.proteinesPer100g}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, proteinesPer100g: e.target.value } : prev
                       )
                     }
                     className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2"

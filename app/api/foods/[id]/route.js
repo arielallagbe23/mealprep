@@ -12,6 +12,7 @@ export async function PATCH(req, context) {
     const body = await req.json();
     const nom = String(body?.nom || "").trim();
     const caloriesPer100g = Number(body?.caloriesPer100g);
+    const proteinesPer100g = body?.proteinesPer100g !== undefined ? Number(body.proteinesPer100g) : null;
     const typeId = String(body?.typeId || "").trim();
 
     if (!nom || !Number.isFinite(caloriesPer100g) || caloriesPer100g < 0 || !typeId) {
@@ -30,6 +31,7 @@ export async function PATCH(req, context) {
     const update = {
       nom,
       caloriesPer100g,
+      ...(proteinesPer100g !== null && { proteinesPer100g }),
       typeId,
       updatedAt: new Date().toISOString(),
     };

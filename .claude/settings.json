@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tail -20 ~/.zshrc)",
+      "Read(//Users/folarindeallagbe/**)",
+      "Bash(cat >> *)"
+    ],
+    "additionalDirectories": [
+      "/Users/folarindeallagbe"
+    ]
+  }
+}

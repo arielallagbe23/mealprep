@@ -12,7 +12,6 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     err,
     dailyKcal,
     setDailyKcal,
-    mealBudgetKcal,
     surplusKcal,
     activeMeals,
     composingMeal,
@@ -33,8 +32,6 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     totals,
     saveMeal,
     success,
-    wheyActive,
-    setWheyActive,
   } = useComposer(apiBaseUrl);
 
   return (
@@ -44,7 +41,6 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
           <ParamsCard
             dailyKcal={dailyKcal}
             setDailyKcal={setDailyKcal}
-            mealBudgetKcal={mealBudgetKcal}
             surplusKcal={surplusKcal}
             activeMeals={activeMeals}
             composingMeal={composingMeal}
@@ -56,8 +52,6 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
             err={err}
             onAutoQuantities={autoQuantities}
             typeBadge={typeBadge}
-            wheyActive={wheyActive}
-            onToggleWhey={() => setWheyActive((a) => !a)}
           />
 
           <FoodsList
@@ -76,10 +70,8 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
             updateFoodGrams={updateFoodGrams}
             totals={totals}
             mealTargetKcal={mealTargetKcal}
-            dailyKcal={dailyKcal}
             onSaveMeal={saveMeal}
             success={success}
-            wheyActive={wheyActive}
           />
         </div>
       </div>

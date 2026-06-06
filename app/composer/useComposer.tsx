@@ -6,7 +6,6 @@ import {
   DINNER_MAX_RATIO,
   DAY_MEAL_SLOTS,
   RATIOS,
-  WHEY_SHAKER_KCAL,
   type DayMealKey,
 } from "./constants";
 import type { Food, FoodType, SelectedItem, SelectedMap, Totals } from "./types";
@@ -31,7 +30,6 @@ export function useComposer(apiBaseUrl = "") {
   const [selected, setSelected] = useState<SelectedMap>({});
   const [nbRepas, setNbRepas] = useState(1);
   const [success, setSuccess] = useState<string | null>(null);
-  const [wheyActive, setWheyActive] = useState(true);
 
   async function fetchCurrentUser() {
     const res = await fetch("/api/users/me", { credentials: "include" });
@@ -162,9 +160,8 @@ export function useComposer(apiBaseUrl = "") {
   }
 
   const mealBudgetKcal = useMemo(() => {
-    const base = Number(dailyKcal) || 0;
-    return Math.max(0, base - (wheyActive ? WHEY_SHAKER_KCAL : 0));
-  }, [dailyKcal, wheyActive]);
+    return Number(dailyKcal) || 0;
+  }, [dailyKcal]);
 
   const mealTargetKcal = useMemo(() => {
     const ratio = mealDistribution[composingMeal] || 0;
@@ -475,28 +472,7 @@ export function useComposer(apiBaseUrl = "") {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Erreur d'enregistrement");
 
-      // Auto-log 1 portion to calorie tracker (silent fail)
-      const today = new Date().toISOString().split("T")[0];
-      const kcalToLog = totals.total;
-      const protToLog = Math.round(totals.proteines);
-      try {
-        await fetch("/api/calories/entry", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            dateKey: today,
-            calories: kcalToLog,
-            proteines: protToLog,
-          }),
-        });
-      } catch {
-        // ne bloque pas la sauvegarde si le comptage échoue
-      }
-
-      setSuccess(
-        `Repas enregistré ✅ — +${kcalToLog} kcal · +${protToLog} g prot. ajoutés au comptage`
-      );
+      setSuccess("Repas enregistré ✅");
       setErr("");
     } catch (e: any) {
       alert(e.message || "Erreur");
@@ -536,7 +512,5 @@ export function useComposer(apiBaseUrl = "") {
     typeBadge,
     saveMeal,
     createFood,
-    wheyActive,
-    setWheyActive,
   };
 }
