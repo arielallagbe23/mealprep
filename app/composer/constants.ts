@@ -1,6 +1,6 @@
 export const RATIOS: Record<string, number> = {
-  Féculents: 0.325,
-  Protéines: 0.475,
+  Féculents: 0.23,
+  Protéines: 0.57,
   Légumes: 0.05,
   Sides: 0.15,
 };
