@@ -11,6 +11,9 @@ import {
 type Props = {
   dailyKcal: string;
   setDailyKcal: (v: string) => void;
+  dailyProteines: string;
+  setDailyProteines: (v: string) => void;
+  mealTargetProteines: number;
   surplusKcal: number;
   activeMeals: Record<DayMealKey, boolean>;
   composingMeal: DayMealKey;
@@ -27,6 +30,9 @@ type Props = {
 export default function ParamsCard({
   dailyKcal,
   setDailyKcal,
+  dailyProteines,
+  setDailyProteines,
+  mealTargetProteines,
   surplusKcal,
   activeMeals,
   composingMeal,
@@ -51,18 +57,32 @@ export default function ParamsCard({
       </h1>
 
       <div className="grid grid-cols-1 gap-3">
-        <label className="text-sm text-gray-700 dark:text-gray-300">
-          Apport journalier (kcal)
-          <input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            placeholder="ex: 2200"
-            value={dailyKcal}
-            onChange={(e) => setDailyKcal(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-sm text-gray-700 dark:text-gray-300">
+            Apport journalier (kcal)
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              placeholder="ex: 2200"
+              value={dailyKcal}
+              onChange={(e) => setDailyKcal(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </label>
+          <label className="text-sm text-gray-700 dark:text-gray-300">
+            Protéines/jour (g)
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              placeholder="ex: 200"
+              value={dailyProteines}
+              onChange={(e) => setDailyProteines(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </label>
+        </div>
 
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 space-y-2">
           <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">
@@ -140,6 +160,11 @@ export default function ParamsCard({
         <span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700">
           Écart actuel : <b>{surplusKcal}</b> kcal
         </span>
+        {mealTargetProteines > 0 && (
+          <span className="px-2 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300">
+            Protéines {currentMealLabel.toLowerCase()} : <b>{mealTargetProteines} g</b>
+          </span>
+        )}
         {Object.keys(RATIOS).map((t) => (
           <span key={t}>{typeBadge(t)}</span>
         ))}

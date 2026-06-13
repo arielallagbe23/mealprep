@@ -12,6 +12,9 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     err,
     dailyKcal,
     setDailyKcal,
+    dailyProteines,
+    setDailyProteines,
+    mealTargetProteines,
     surplusKcal,
     activeMeals,
     composingMeal,
@@ -41,6 +44,9 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
           <ParamsCard
             dailyKcal={dailyKcal}
             setDailyKcal={setDailyKcal}
+            dailyProteines={dailyProteines}
+            setDailyProteines={setDailyProteines}
+            mealTargetProteines={mealTargetProteines}
             surplusKcal={surplusKcal}
             activeMeals={activeMeals}
             composingMeal={composingMeal}
@@ -70,6 +76,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
             updateFoodGrams={updateFoodGrams}
             totals={totals}
             mealTargetKcal={mealTargetKcal}
+            mealTargetProteines={mealTargetProteines}
             onSaveMeal={saveMeal}
             success={success}
           />

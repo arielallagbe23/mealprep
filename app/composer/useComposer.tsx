@@ -30,6 +30,7 @@ export function useComposer(apiBaseUrl = "") {
   const [selected, setSelected] = useState<SelectedMap>({});
   const [nbRepas, setNbRepas] = useState(1);
   const [success, setSuccess] = useState<string | null>(null);
+  const [dailyProteines, setDailyProteines] = useState("");
 
   async function fetchCurrentUser() {
     const res = await fetch("/api/users/me", { credentials: "include" });
@@ -167,6 +168,11 @@ export function useComposer(apiBaseUrl = "") {
     const ratio = mealDistribution[composingMeal] || 0;
     return Math.round(mealBudgetKcal * ratio);
   }, [mealBudgetKcal, mealDistribution, composingMeal]);
+
+  const mealTargetProteines = useMemo(() => {
+    const ratio = mealDistribution[composingMeal] || 0;
+    return Math.round(Number(dailyProteines) * ratio * 10) / 10;
+  }, [dailyProteines, mealDistribution, composingMeal]);
 
   const grouped = useMemo(() => {
     return foods.reduce((acc: Record<string, Food[]>, f) => {
@@ -490,6 +496,9 @@ export function useComposer(apiBaseUrl = "") {
     dailyKcal,
     setDailyKcal,
     mealBudgetKcal,
+    dailyProteines,
+    setDailyProteines,
+    mealTargetProteines,
     activeMeals,
     composingMeal,
     toggleMeal,

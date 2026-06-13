@@ -11,6 +11,7 @@ type Props = {
   updateFoodGrams: (id: string, delta: number) => void;
   totals: Totals;
   mealTargetKcal: number;
+  mealTargetProteines: number;
   onSaveMeal: () => void;
   success: string | null;
 };
@@ -22,6 +23,7 @@ export default function MealSummary({
   updateFoodGrams,
   totals,
   mealTargetKcal,
+  mealTargetProteines,
   onSaveMeal,
   success,
 }: Props) {
@@ -32,6 +34,8 @@ export default function MealSummary({
   const kcalTotal = totals.total * nbRepas;
   const kcalCible = mealTargetKcal * nbRepas;
   const protTotal = Math.round(totals.proteines * nbRepas * 10) / 10;
+  const protCible = Math.round(mealTargetProteines * nbRepas * 10) / 10;
+  const protPct = protCible > 0 ? Math.min(100, Math.round((protTotal / protCible) * 100)) : 0;
   const kcalRemaining = Math.max(0, kcalCible - kcalTotal);
 
   async function handleLogCalories() {
@@ -131,6 +135,33 @@ export default function MealSummary({
           <span>{kcalTotal} / {kcalCible} kcal</span>
         </div>
       </div>
+
+      {/* Jauge protéines */}
+      {protCible > 0 && (
+        <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 space-y-2 shadow-sm">
+          <div className="flex justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+            <span>Protéines</span>
+            <span className={protPct >= 100 ? "text-emerald-500" : protPct >= 80 ? "text-amber-400" : "text-rose-400"}>
+              {protTotal} / {protCible} g
+            </span>
+          </div>
+          <div className="w-full h-3 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                protPct >= 100
+                  ? "bg-emerald-500"
+                  : protPct >= 80
+                  ? "bg-amber-400"
+                  : "bg-rose-500"
+              }`}
+              style={{ width: `${protPct}%` }}
+            />
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
+            {protPct >= 100 ? "Objectif atteint ✅" : `${protPct}% — encore ${Math.round((protCible - protTotal) * 10) / 10} g`}
+          </div>
+        </div>
+      )}
 
       {/* Stats nutritionnelles */}
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-900/40 px-3 py-3">
