@@ -248,20 +248,20 @@ export default function MealsPage() {
                     </div>
 
                     {/* Colonne droite : portions + actions */}
-                    <div className="flex flex-col items-end gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-col items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => setPortions((s) => ({ ...s, [m.id]: Math.max(1, (s[m.id] ?? 1) - 1) }))}
                           className="w-10 h-10 rounded-full bg-rose-600 text-white text-xl font-bold hover:bg-rose-700 active:scale-90 transition flex items-center justify-center"
                         >–</button>
-                        <span className="w-5 text-center font-semibold text-base">{p}</span>
                         <button
                           type="button"
                           onClick={() => setPortions((s) => ({ ...s, [m.id]: (s[m.id] ?? 1) + 1 }))}
                           className="w-10 h-10 rounded-full bg-blue-600 text-white text-xl font-bold hover:bg-blue-700 active:scale-90 transition flex items-center justify-center"
                         >+</button>
                       </div>
+                      <span className="font-bold text-base leading-none">{p}</span>
                       <div className="flex items-center gap-2">
                         <a
                           href={`/shopping?ids=${m.id}&p_${m.id}=${p}`}
