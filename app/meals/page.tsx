@@ -247,33 +247,29 @@ export default function MealsPage() {
                       </div>
                     </div>
 
-                    {/* Portions — stop propagation pour ne pas toggle la checkbox */}
-                    <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {/* Portions + actions — stop propagation */}
+                    <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => setPortions((s) => ({ ...s, [m.id]: Math.max(1, (s[m.id] ?? 1) - 1) }))}
-                        className="w-8 h-8 rounded-full bg-rose-600 text-white font-bold hover:bg-rose-700 active:scale-90 transition flex items-center justify-center"
+                        className="w-10 h-10 rounded-full bg-rose-600 text-white text-xl font-bold hover:bg-rose-700 active:scale-90 transition flex items-center justify-center"
                       >–</button>
-                      <span className="w-5 text-center font-semibold">{p}</span>
+                      <span className="w-5 text-center font-semibold text-base">{p}</span>
                       <button
                         type="button"
                         onClick={() => setPortions((s) => ({ ...s, [m.id]: (s[m.id] ?? 1) + 1 }))}
-                        className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold hover:bg-blue-700 active:scale-90 transition flex items-center justify-center"
+                        className="w-10 h-10 rounded-full bg-blue-600 text-white text-xl font-bold hover:bg-blue-700 active:scale-90 transition flex items-center justify-center"
                       >+</button>
+                      <a
+                        href={`/shopping?ids=${m.id}&p_${m.id}=${p}`}
+                        className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-90 transition flex items-center justify-center text-lg"
+                      >🛒</a>
+                      <button
+                        onClick={() => onDelete(m.id)}
+                        disabled={!!deleting[m.id]}
+                        className="w-10 h-10 rounded-full bg-rose-700 hover:bg-rose-800 active:scale-90 transition flex items-center justify-center text-lg disabled:opacity-50"
+                      >🗑️</button>
                     </div>
-                  </div>
-
-                  {/* Supprimer — stop propagation */}
-                  <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                    <a
-                      href={`/shopping?ids=${m.id}&p_${m.id}=${p}`}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-sm font-semibold"
-                    >🛒</a>
-                    <button
-                      onClick={() => onDelete(m.id)}
-                      disabled={!!deleting[m.id]}
-                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-sm disabled:opacity-50"
-                    >🗑️</button>
                   </div>
                 </li>
               );
