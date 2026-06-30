@@ -247,33 +247,33 @@ export default function MealsPage() {
                       </div>
                     </div>
 
-                    {/* Portions — stop propagation */}
-                    <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => setPortions((s) => ({ ...s, [m.id]: Math.max(1, (s[m.id] ?? 1) - 1) }))}
-                        className="w-10 h-10 rounded-full bg-rose-600 text-white text-xl font-bold hover:bg-rose-700 active:scale-90 transition flex items-center justify-center"
-                      >–</button>
-                      <span className="w-5 text-center font-semibold text-base">{p}</span>
-                      <button
-                        type="button"
-                        onClick={() => setPortions((s) => ({ ...s, [m.id]: (s[m.id] ?? 1) + 1 }))}
-                        className="w-10 h-10 rounded-full bg-blue-600 text-white text-xl font-bold hover:bg-blue-700 active:scale-90 transition flex items-center justify-center"
-                      >+</button>
+                    {/* Colonne droite : portions + actions */}
+                    <div className="flex flex-col items-end gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPortions((s) => ({ ...s, [m.id]: Math.max(1, (s[m.id] ?? 1) - 1) }))}
+                          className="w-10 h-10 rounded-full bg-rose-600 text-white text-xl font-bold hover:bg-rose-700 active:scale-90 transition flex items-center justify-center"
+                        >–</button>
+                        <span className="w-5 text-center font-semibold text-base">{p}</span>
+                        <button
+                          type="button"
+                          onClick={() => setPortions((s) => ({ ...s, [m.id]: (s[m.id] ?? 1) + 1 }))}
+                          className="w-10 h-10 rounded-full bg-blue-600 text-white text-xl font-bold hover:bg-blue-700 active:scale-90 transition flex items-center justify-center"
+                        >+</button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`/shopping?ids=${m.id}&p_${m.id}=${p}`}
+                          className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-90 transition flex items-center justify-center text-lg"
+                        >🛒</a>
+                        <button
+                          onClick={() => onDelete(m.id)}
+                          disabled={!!deleting[m.id]}
+                          className="w-10 h-10 rounded-full bg-rose-700 hover:bg-rose-800 active:scale-90 transition flex items-center justify-center text-lg disabled:opacity-50"
+                        >🗑️</button>
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Actions — stop propagation */}
-                  <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                    <a
-                      href={`/shopping?ids=${m.id}&p_${m.id}=${p}`}
-                      className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-90 transition flex items-center justify-center text-lg"
-                    >🛒</a>
-                    <button
-                      onClick={() => onDelete(m.id)}
-                      disabled={!!deleting[m.id]}
-                      className="w-10 h-10 rounded-full bg-rose-700 hover:bg-rose-800 active:scale-90 transition flex items-center justify-center text-lg disabled:opacity-50"
-                    >🗑️</button>
                   </div>
                 </li>
               );
