@@ -247,7 +247,7 @@ export default function MealsPage() {
                       </div>
                     </div>
 
-                    {/* Portions + actions — stop propagation */}
+                    {/* Portions — stop propagation */}
                     <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
@@ -260,16 +260,20 @@ export default function MealsPage() {
                         onClick={() => setPortions((s) => ({ ...s, [m.id]: (s[m.id] ?? 1) + 1 }))}
                         className="w-10 h-10 rounded-full bg-blue-600 text-white text-xl font-bold hover:bg-blue-700 active:scale-90 transition flex items-center justify-center"
                       >+</button>
-                      <a
-                        href={`/shopping?ids=${m.id}&p_${m.id}=${p}`}
-                        className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-90 transition flex items-center justify-center text-lg"
-                      >🛒</a>
-                      <button
-                        onClick={() => onDelete(m.id)}
-                        disabled={!!deleting[m.id]}
-                        className="w-10 h-10 rounded-full bg-rose-700 hover:bg-rose-800 active:scale-90 transition flex items-center justify-center text-lg disabled:opacity-50"
-                      >🗑️</button>
                     </div>
+                  </div>
+
+                  {/* Actions — stop propagation */}
+                  <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                    <a
+                      href={`/shopping?ids=${m.id}&p_${m.id}=${p}`}
+                      className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-90 transition flex items-center justify-center text-lg"
+                    >🛒</a>
+                    <button
+                      onClick={() => onDelete(m.id)}
+                      disabled={!!deleting[m.id]}
+                      className="w-10 h-10 rounded-full bg-rose-700 hover:bg-rose-800 active:scale-90 transition flex items-center justify-center text-lg disabled:opacity-50"
+                    >🗑️</button>
                   </div>
                 </li>
               );
