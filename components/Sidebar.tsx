@@ -87,14 +87,17 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile toggle */}
-      <button
-        onClick={() => setOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-40 w-9 h-9 rounded-lg bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-300"
-        aria-label="Ouvrir le menu"
-      >
-        <Menu size={18} />
-      </button>
+      {/* Mobile top bar — sticky, pleine largeur, fond opaque */}
+      <div className="md:hidden sticky top-0 left-0 right-0 z-40 bg-gray-950 border-b border-gray-800 px-4 py-3 flex items-center gap-3">
+        <button
+          onClick={() => setOpen(true)}
+          className="w-9 h-9 rounded-lg bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-300"
+          aria-label="Ouvrir le menu"
+        >
+          <Menu size={18} />
+        </button>
+        <span className="text-white font-semibold text-sm">🥦 MealPrep</span>
+      </div>
 
       {/* Mobile overlay */}
       {open && (

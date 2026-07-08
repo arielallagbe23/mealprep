@@ -1,95 +1,281 @@
 "use client";
 import { useEffect, useState } from "react";
-import RequireAuth from "@/components/RequireAuth";
 import Sidebar from "@/components/Sidebar";
-import {
-  DAILY_CHICKEN_MAX_G,
-  DAILY_WHEY_MAX_G,
-  WHEY_SHAKER_KCAL,
-  WHEY_SHAKER_PROTEINES,
-} from "@/app/composer/constants";
+import RequireAuth from "@/components/RequireAuth";
 
-const JOURS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-const DAILY_KCAL_TARGET = 2450;
+const MOIS_NOMS = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+];
 
+const DEFAULT_KEYWORDS = [
+  "Salade", "Fruité", "Légumes", "Froid", "Chaud", "Léger", "Copieux", "Rapide",
+];
 
 export default function Accueil() {
-  const [poulet, setPoulet] = useState<any>(null);
-  const [legumes, setLegumes] = useState<any[]>([]);
+  const [idees, setIdees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [disliked, setDisliked] = useState<any[]>([]);
+  const [newDisliked, setNewDisliked] = useState("");
+
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
+  const [customKeywords, setCustomKeywords] = useState<any[]>([]);
+  const [newKeyword, setNewKeyword] = useState("");
+
+  const moisActuel = new Date().getMonth() + 1;
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/foods?expandType=true", { credentials: "include" });
+        const res = await fetch("/api/suggest-meals", { credentials: "include" });
         const data = await res.json();
-        if (Array.isArray(data)) {
-          setPoulet(data.find((f) => f.nom?.toLowerCase().includes("poulet cru")));
-          setLegumes(data.filter((f) => f.typeName === "Légumes"));
-        }
+        setIdees(data.idees || []);
+      } catch {
+        setError("Impossible de charger le cache");
       } finally {
         setLoading(false);
       }
     })();
+
+    fetch("/api/disliked-foods", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setDisliked(Array.isArray(d) ? d : []))
+      .catch(() => setDisliked([]));
+
+    fetch("/api/meal-keywords", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setCustomKeywords(Array.isArray(d) ? d : []))
+      .catch(() => setCustomKeywords([]));
   }, []);
 
-  const jourIndex = new Date().getDay();
-  const legumeDuJour = legumes.length ? legumes[jourIndex % legumes.length] : null;
+  function toggleKeyword(word: string) {
+    setSelectedKeywords((prev) =>
+      prev.includes(word) ? prev.filter((w) => w !== word) : [...prev, word]
+    );
+  }
 
-  const pouletKcal = poulet ? Math.round((DAILY_CHICKEN_MAX_G / 100) * poulet.caloriesPer100g) : 0;
-  const pouletProt = poulet ? Math.round((DAILY_CHICKEN_MAX_G / 100) * (poulet.proteinesPer100g || 0)) : 0;
-  const wheyKcal = Math.round((DAILY_WHEY_MAX_G / 45) * WHEY_SHAKER_KCAL);
-  const wheyProt = Math.round((DAILY_WHEY_MAX_G / 45) * WHEY_SHAKER_PROTEINES);
-  const kcalRestant = DAILY_KCAL_TARGET - pouletKcal - wheyKcal;
+  async function handleGenerate() {
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/suggest-meals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ keywords: selectedKeywords }),
+      });
+      const data = await res.json();
+      if (Array.isArray(data.idees)) setIdees(data.idees);
+      else setError("Réponse inattendue de l'IA");
+    } catch {
+      setError("Erreur pendant la génération");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function addDisliked() {
+    if (!newDisliked.trim()) return;
+    try {
+      const res = await fetch("/api/disliked-foods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ nom: newDisliked.trim() }),
+      });
+      const data = await res.json();
+      setDisliked((d) => [...d, data]);
+      setNewDisliked("");
+    } catch {
+      setError("Impossible d'ajouter cet aliment");
+    }
+  }
+
+  async function removeDisliked(id: string) {
+    try {
+      await fetch(`/api/disliked-foods/${id}`, { method: "DELETE", credentials: "include" });
+      setDisliked((d) => d.filter((x) => x.id !== id));
+    } catch {
+      setError("Impossible de supprimer cet aliment");
+    }
+  }
+
+  async function addKeyword() {
+    if (!newKeyword.trim()) return;
+    try {
+      const res = await fetch("/api/meal-keywords", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ label: newKeyword.trim() }),
+      });
+      const data = await res.json();
+      setCustomKeywords((k) => [...k, data]);
+      setNewKeyword("");
+    } catch {
+      setError("Impossible d'ajouter ce mot-clé");
+    }
+  }
+
+  async function removeKeyword(id: string, label: string) {
+    try {
+      await fetch(`/api/meal-keywords/${id}`, { method: "DELETE", credentials: "include" });
+      setCustomKeywords((k) => k.filter((x) => x.id !== id));
+      setSelectedKeywords((prev) => prev.filter((w) => w !== label));
+    } catch {
+      setError("Impossible de supprimer ce mot-clé");
+    }
+  }
 
   return (
     <RequireAuth>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
+      <div className="min-h-screen bg-gray-900 flex flex-col md:flex-row">
         <Sidebar />
-<main className="flex-1 p-6 pt-20 md:pt-10 md:p-10 max-w-2xl mx-auto w-full">          <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">{JOURS[jourIndex]}</p>
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">
-            Ton repas du jour
-          </h2>
+        <main className="flex-1 p-6 md:pt-10 md:p-10 max-w-4xl mx-auto w-full">
+          <p className="text-gray-400 text-sm mb-1">{MOIS_NOMS[moisActuel - 1]}</p>
+          <h2 className="text-2xl font-bold text-white mb-1">Idées de repas de saison</h2>
+          <p className="text-gray-400 text-sm mb-6">Choisis un style, puis génère tes idées du jour.</p>
 
-          {loading ? (
-            <p className="text-gray-500 dark:text-gray-400">Chargement…</p>
-          ) : (
-            <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-md border border-gray-200 dark:border-gray-700 p-6 space-y-4">
-              <div className="flex justify-between">
-                <span className="text-gray-800 dark:text-white font-medium">
-                  🍗 {poulet?.nom || "Blanc de poulet"}
-                </span>
-                <span className="text-gray-500 dark:text-gray-400">
-                  {DAILY_CHICKEN_MAX_G}g · {pouletKcal} kcal · {pouletProt}g prot
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-800 dark:text-white font-medium">🥤 Clear Whey</span>
-                <span className="text-gray-500 dark:text-gray-400">
-                  {DAILY_WHEY_MAX_G}g · {wheyKcal} kcal · {wheyProt}g prot
-                </span>
-              </div>
-              {legumeDuJour && (
-                <div className="flex justify-between">
-                  <span className="text-gray-800 dark:text-white font-medium">
-                    🥦 {legumeDuJour.nom}
+          {/* Sélection des mots-clés */}
+          <div className="mb-6 rounded-2xl bg-gray-800 border border-gray-700 p-4">
+            <p className="text-sm text-gray-400 mb-3">Style de repas (optionnel)</p>
+
+            <div className="flex flex-wrap gap-2 mb-3">
+              {DEFAULT_KEYWORDS.map((word) => (
+                <button
+                  key={word}
+                  onClick={() => toggleKeyword(word)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    selectedKeywords.includes(word)
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-900 text-gray-400 border border-gray-700 hover:border-gray-600"
+                  }`}
+                >
+                  {word}
+                </button>
+              ))}
+
+              {customKeywords.map((kw) => (
+                <button
+                  key={kw.id}
+                  onClick={() => toggleKeyword(kw.label)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    selectedKeywords.includes(kw.label)
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-900 text-gray-400 border border-gray-700 hover:border-gray-600"
+                  }`}
+                >
+                  {kw.label}
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeKeyword(kw.id, kw.label);
+                    }}
+                    className="text-rose-400 hover:text-rose-300"
+                  >
+                    ✕
                   </span>
-                  <span className="text-gray-500 dark:text-gray-400">à volonté</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              <input
+                value={newKeyword}
+                onChange={(e) => setNewKeyword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addKeyword()}
+                placeholder="ex: saumon, pignon de pin…"
+                className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+              />
+              <button
+                onClick={addKeyword}
+                className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm"
+              >
+                Ajouter
+              </button>
+            </div>
+
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition disabled:opacity-50"
+            >
+              {generating ? "Génération…" : "🔄 Générer mes idées"}
+            </button>
+          </div>
+
+          {loading && <p className="text-gray-500">Chargement…</p>}
+          {error && <p className="text-rose-400 mb-4">{error}</p>}
+
+          {!loading && idees.length === 0 && !error && (
+            <p className="text-gray-400 text-center py-8">
+              Choisis un style ci-dessus (ou pas) et clique sur générer.
+            </p>
+          )}
+
+          {idees.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {idees.map((idee, i) => (
+                <div key={i} className="rounded-2xl overflow-hidden bg-gray-800 border border-gray-700">
+                  <div className={`h-32 bg-gradient-to-br ${idee.gradient} flex items-center justify-center text-6xl`}>
+                    {idee.emoji}
+                  </div>
+                  <div className="p-4 space-y-2">
+                    <h3 className="text-white font-semibold">{idee.nom}</h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {idee.ingredients?.map((ing: any, j: number) => (
+                        <span
+                          key={j}
+                          className="text-xs bg-gray-900 border border-gray-700 rounded-full px-2.5 py-1 text-gray-300"
+                        >
+                          {typeof ing === "string" ? ing : ing?.nom}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-gray-500 text-xs pt-1">~{idee.kcalApprox} kcal</p>
+                  </div>
                 </div>
-              )}
-              <div className="pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-between text-sm">
-                <span className="text-gray-500 dark:text-gray-400">
-                  Kcal restant à combler (accompagnements)
-                </span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                  {kcalRestant} kcal
-                </span>
-              </div>
-              <p className="text-xs text-gray-400 dark:text-gray-500 pt-2">
-                Rappel : féculent uniquement au dîner, post-training.
-              </p>
+              ))}
             </div>
           )}
+
+          <div className="mt-10 rounded-2xl bg-gray-800 border border-gray-700 p-4">
+            <h3 className="text-white font-semibold mb-3">🚫 Aliments que je n'aime pas</h3>
+            <div className="flex gap-2 mb-3">
+              <input
+                value={newDisliked}
+                onChange={(e) => setNewDisliked(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addDisliked()}
+                placeholder="ex: œufs, champignons…"
+                className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+              />
+              <button
+                onClick={addDisliked}
+                className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm"
+              >
+                Ajouter
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {disliked.map((item) => (
+                <span
+                  key={item.id}
+                  className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-full px-3 py-1 text-sm text-gray-300"
+                >
+                  {item.nom}
+                  <button onClick={() => removeDisliked(item.id)} className="text-rose-400 hover:text-rose-300">
+                    ✕
+                  </button>
+                </span>
+              ))}
+              {disliked.length === 0 && (
+                <p className="text-gray-500 text-sm">Aucun aliment exclu pour l'instant.</p>
+              )}
+            </div>
+          </div>
         </main>
       </div>
     </RequireAuth>
