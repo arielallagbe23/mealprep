@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/RequireAuth";
+import Sidebar from "@/components/Sidebar";
 import BackButton from "@/components/BackButton";
 
 type Item = {
@@ -183,8 +184,10 @@ function ShoppingPageInner() {
 
   return (
     <RequireAuth>
-      <div className="min-h-screen bg-gray-900 text-white px-4 py-6 max-w-xl mx-auto pb-10">
-        <BackButton label="Retour" fallbackHref="/accueil" className="mb-3 w-fit" />
+      <div className="min-h-screen bg-gray-900 text-white flex flex-col md:flex-row">
+        <Sidebar />
+        <main className="flex-1 px-4 py-6 pb-10">
+        <div className="max-w-xl mx-auto w-full">
         <h1 className="text-2xl font-bold mb-4">🛒 Liste de courses</h1>
 
         {loading && <p className="text-gray-400">Chargement...</p>}
@@ -278,6 +281,8 @@ function ShoppingPageInner() {
             )}
           </>
         )}
+        </div>
+        </main>
       </div>
 
       {/* Picker modal */}

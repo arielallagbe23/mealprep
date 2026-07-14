@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import RequireAuth from "@/components/RequireAuth";
+import Sidebar from "@/components/Sidebar";
 import BackButton from "@/components/BackButton";
 
 type MealItem = {
@@ -188,15 +189,17 @@ export default function MealsPage() {
     }
   }
 
-  if (loading) return <RequireAuth><div className="min-h-screen bg-gray-900 text-white p-6 max-w-xl mx-auto">Chargement…</div></RequireAuth>;
-  if (err) return <RequireAuth><div className="min-h-screen bg-gray-900 text-white p-6 max-w-xl mx-auto"><p className="text-red-400">{err}</p></div></RequireAuth>;
+  if (loading) return <RequireAuth><div className="min-h-screen bg-gray-900 flex flex-col md:flex-row"><Sidebar /><main className="flex-1 p-6 text-white">Chargement…</main></div></RequireAuth>;
+  if (err) return <RequireAuth><div className="min-h-screen bg-gray-900 flex flex-col md:flex-row"><Sidebar /><main className="flex-1 p-6 text-white"><p className="text-red-400">{err}</p></main></div></RequireAuth>;
 
   const hasSelection = selection.length > 0;
 
   return (
     <RequireAuth>
-      <div className="min-h-screen bg-gray-900 text-white px-4 py-6 max-w-xl mx-auto" style={{ paddingBottom: hasSelection ? "120px" : "24px" }}>
-        <BackButton label="Retour" fallbackHref="/accueil" className="mb-3 w-fit" />
+      <div className="min-h-screen bg-gray-900 text-white flex flex-col md:flex-row">
+        <Sidebar />
+        <main className="flex-1 px-4 py-6" style={{ paddingBottom: hasSelection ? "120px" : "24px" }}>
+        <div className="max-w-xl mx-auto w-full">
         <h1 className="text-2xl font-bold mb-4">📚 Mes repas</h1>
 
         {/* Jauges */}
@@ -280,6 +283,8 @@ export default function MealsPage() {
             })}
           </ul>
         )}
+      </div>
+        </main>
       </div>
 
       {/* Barre sticky de log */}

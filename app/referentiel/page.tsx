@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import BackButton from "@/components/BackButton";
 import RequireAuth from "@/components/RequireAuth";
+import Sidebar from "@/components/Sidebar";
 
 const FOODS_PER_PAGE = 10;
 
@@ -277,7 +278,9 @@ export default function ReferentielPage() {
 
   return (
     <RequireAuth>
-      <main className="min-h-screen bg-gray-900 text-white px-4 py-6">
+      <div className="min-h-screen bg-gray-900 flex flex-col md:flex-row">
+        <Sidebar />
+        <main className="flex-1 px-4 py-6 text-white">
         <div className="w-full max-w-6xl mx-auto space-y-5">
           <BackButton label="Retour" fallbackHref="/accueil" className="w-fit" />
 
@@ -616,7 +619,8 @@ export default function ReferentielPage() {
             </div>
           )}
         </div>
-      </main>
+        </main>
+      </div>
     </RequireAuth>
   );
 }

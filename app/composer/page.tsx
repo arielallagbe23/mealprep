@@ -1,6 +1,7 @@
 "use client";
 
 import RequireAuth from "@/components/RequireAuth";
+import Sidebar from "@/components/Sidebar";
 import FoodsList from "./components/FoodsList";
 import MealSummary from "./components/MealSummary";
 import ParamsCard from "./components/ParamsCard";
@@ -39,7 +40,9 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
 
   return (
     <RequireAuth>
-      <div className="w-full min-h-screen bg-gradient-to-b from-gray-900 to-gray-900 px-4 py-6">
+      <div className="min-h-screen bg-gray-900 flex flex-col md:flex-row">
+        <Sidebar />
+        <main className="flex-1 px-4 py-6 md:py-10">
         <div className="w-full max-w-md mx-auto space-y-6">
           <ParamsCard
             dailyKcal={dailyKcal}
@@ -81,6 +84,7 @@ export default function Composer({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
             success={success}
           />
         </div>
+        </main>
       </div>
     </RequireAuth>
   );

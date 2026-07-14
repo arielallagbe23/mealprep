@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, type FormEvent } from "react";
 import Link from "next/link";
 import RequireAuth from "@/components/RequireAuth";
+import Sidebar from "@/components/Sidebar";
 import { useAuth } from "@/components/useAuth";
 import Calendar from "@/app/comptage-calories/Calendar";
 
@@ -464,7 +465,9 @@ export default function CalorieDashboard() {
 
   return (
     <RequireAuth>
-      <main className="min-h-screen bg-gray-900 px-4 py-8 text-white">
+      <div className="min-h-screen bg-gray-900 flex flex-col md:flex-row">
+        <Sidebar />
+        <main className="flex-1 px-4 py-8 text-white">
         <div className="max-w-3xl mx-auto space-y-5">
           {/* Header */}
           <div className="rounded-2xl border border-gray-700 bg-gray-800 p-5">
@@ -1087,7 +1090,8 @@ export default function CalorieDashboard() {
             </>
           )}
         </div>
-      </main>
+        </main>
+      </div>
     </RequireAuth>
   );
 }
