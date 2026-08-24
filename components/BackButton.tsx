@@ -5,7 +5,7 @@ import { useCallback } from "react";
 
 type Props = {
   label?: string;
-  fallbackHref?: string; // où aller si l’historique est vide (ex: "/accueil")
+  fallbackHref?: string; // où aller si l’historique est vide (ex: "/composer")
   className?: string;
 };
 

@@ -282,7 +282,7 @@ export default function ReferentielPage() {
         <Sidebar />
         <main className="flex-1 px-4 py-6 text-white">
         <div className="w-full max-w-6xl mx-auto space-y-5">
-          <BackButton label="Retour" fallbackHref="/accueil" className="w-fit" />
+          <BackButton label="Retour" fallbackHref="/composer" className="w-fit" />
 
           <div className="rounded-xl border border-gray-700 bg-gray-800 p-4">
             <h1 className="text-2xl font-bold">Gestion des aliments</h1>

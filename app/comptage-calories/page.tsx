@@ -491,10 +491,10 @@ export default function CalorieDashboard() {
                   <span className="text-sm text-gray-300">{user.email}</span>
                 )}
                 <Link
-                  href="/accueil"
+                  href="/composer"
                   className="rounded-lg border border-gray-600 px-3 py-1.5 text-sm text-gray-200 hover:bg-gray-700 transition"
                 >
-                  ← Accueil
+                  ← Retour
                 </Link>
               </div>
             </div>

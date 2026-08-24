@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/accueil",          label: "Accueil",                  icon: UtensilsCrossed },
   { href: "/composer",         label: "Composer un repas",        icon: UtensilsCrossed },
   { href: "/meals",            label: "Mes repas enregistrés",    icon: BookOpen },
   { href: "/shopping",         label: "Liste de courses",         icon: ShoppingCart },

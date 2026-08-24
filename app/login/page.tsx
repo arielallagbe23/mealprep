@@ -42,7 +42,7 @@ export default function LoginPage() {
         nickname: data.displayName || undefined,
       });
 
-      router.replace("/accueil");
+      router.replace("/composer");
     } catch (err: unknown) {
       setMsg(getErrorMessage(err));
     } finally {

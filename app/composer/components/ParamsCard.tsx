@@ -50,7 +50,7 @@ export default function ParamsCard({
 
   return (
     <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-4 shadow-sm">
-      <BackButton label="Retour" fallbackHref="/accueil" className="mb-3 w-fit" />
+      <BackButton label="Retour" fallbackHref="/composer" className="mb-3 w-fit" />
 
       <h1 className="text-xl md:text-2xl font-bold text-center text-gray-900 dark:text-gray-100">
         🍽️ Composer un repas
