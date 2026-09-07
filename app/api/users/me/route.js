@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-/** @typedef {{uid?: string, email?: string, nickname?: string|null}} MPCFields */
+/** @typedef {{uid?: string, email?: string, nickname?: string|null, role?: string}} MPCFields */
 /** @param {Request} req */
 export async function GET(req) {
   try {
@@ -34,6 +34,7 @@ export async function GET(req) {
       uid: decoded.uid ?? null,
       email: decoded.email ?? null,
       nickname: decoded.nickname ?? null,
+      role: decoded.role === "admin" ? "admin" : "user",
     });
   } catch (e) {
     console.error("USER ME ERROR", e);

@@ -40,10 +40,10 @@ export default function Home() {
 
         <div>
           <Link
-            href="/comptage-calories"
+            href="/performance"
             className="inline-block py-2 px-5 rounded-lg border border-orange-300 text-orange-700 dark:border-orange-700 dark:text-orange-300 text-sm font-medium hover:bg-orange-50 dark:hover:bg-orange-950/30 transition"
           >
-            🔐 Récupérer le token calories
+            📊 Performance
           </Link>
         </div>
       </main>

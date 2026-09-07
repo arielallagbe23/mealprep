@@ -21,6 +21,7 @@ export async function POST(req) {
       nickname: nickname || "",
       passwordHash,
       status: "accepted",
+      role: "user",
       createdAt: new Date(),
       updatedAt: new Date(),
     });

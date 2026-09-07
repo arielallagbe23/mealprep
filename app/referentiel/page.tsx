@@ -277,7 +277,7 @@ export default function ReferentielPage() {
   }
 
   return (
-    <RequireAuth>
+    <RequireAuth adminOnly>
       <div className="min-h-screen bg-gray-900 flex flex-col md:flex-row">
         <Sidebar />
         <main className="flex-1 px-4 py-6 text-white">

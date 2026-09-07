@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export type AuthUser = { uid: string; email: string; nickname?: string } | null;
+export type AuthUser = { uid: string; email: string; nickname?: string; role?: "admin" | "user" } | null;
 
 export function useAuth() {
   const [user, setUser] = useState<AuthUser>(null);

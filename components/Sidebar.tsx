@@ -9,17 +9,19 @@ import {
   ShoppingCart,
   Database,
   BarChart2,
+  Calculator,
   LogOut,
   Menu,
   X,
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/composer",         label: "Composer un repas",        icon: UtensilsCrossed },
+  { href: "/composer",         label: "Composer un repas",        icon: UtensilsCrossed, adminOnly: true },
   { href: "/meals",            label: "Mes repas enregistrés",    icon: BookOpen },
   { href: "/shopping",         label: "Liste de courses",         icon: ShoppingCart },
-  { href: "/referentiel",      label: "Référentiel aliments",     icon: Database },
-  { href: "/comptage-calories",label: "Comptage calories",        icon: BarChart2 },
+  { href: "/referentiel",      label: "Référentiel aliments",     icon: Database,        adminOnly: true },
+  { href: "/performance",      label: "Performance",              icon: BarChart2 },
+  { href: "/comptage-calories",label: "Comptage calorie",         icon: Calculator },
 ];
 
 export default function Sidebar() {
@@ -51,7 +53,7 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.filter((item) => !item.adminOnly || user?.role === "admin").map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
           return (
             <Link

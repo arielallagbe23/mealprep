@@ -16,6 +16,7 @@ type Item = {
   grams: number;
   kcal: number;
   prot: number;
+  bought?: boolean;
 };
 
 type Food = {
@@ -57,9 +58,19 @@ function ShoppingPageInner() {
     return o;
   }, [sp, initialIds]);
 
+  // Mode "courses" : cases à cocher + liste enregistrée, consultable sans repas précis
+  // (liste combinée générée depuis /meals, ou liste reprise via /shopping sans paramètres).
+  const isShoppingMode = sp.get("mode") === "shop" || initialIds.length === 0;
+  const isEditMode = !isShoppingMode && initialIds.length === 1;
+
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Sauvegarde de la liste de courses (mode "courses")
+  const [savingList, setSavingList] = useState(false);
+  const [saveListSuccess, setSaveListSuccess] = useState(false);
+  const [saveListErr, setSaveListErr] = useState<string | null>(null);
 
   // Foods pour le picker
   const [foods, setFoods] = useState<Food[]>([]);
@@ -71,23 +82,35 @@ function ShoppingPageInner() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
 
-  // Charger la liste de courses
+  // Charger la liste de courses : depuis des repas (ids en query) ou, si aucun id,
+  // reprendre la liste enregistrée pour continuer les courses là où on s'était arrêté.
   useEffect(() => {
-    if (!initialIds.length) return;
-    setLoading(true);
-    fetch("/api/shopping-list", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ mealIds: initialIds, portionsByMeal: initialPortions }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) throw new Error(data.error);
-        setItems(data.items || []);
+    if (initialIds.length > 0) {
+      setLoading(true);
+      fetch("/api/shopping-list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ mealIds: initialIds, portionsByMeal: initialPortions }),
       })
-      .catch((e) => setErr(e.message))
-      .finally(() => setLoading(false));
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.error) throw new Error(data.error);
+          setItems((data.items || []).map((it: Item) => ({ ...it, bought: false })));
+        })
+        .catch((e) => setErr(e.message))
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(true);
+      fetch("/api/shopping-list/current", { credentials: "include" })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.error) throw new Error(data.error);
+          setItems(data.items || []);
+        })
+        .catch((e) => setErr(e.message))
+        .finally(() => setLoading(false));
+    }
   }, []);
 
   // Charger le référentiel pour le picker
@@ -115,6 +138,31 @@ function ShoppingPageInner() {
 
   function removeItem(idx: number) {
     setItems((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function toggleBought(idx: number) {
+    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, bought: !it.bought } : it)));
+  }
+
+  async function handleSaveList() {
+    setSavingList(true);
+    setSaveListErr(null);
+    setSaveListSuccess(false);
+    try {
+      const res = await fetch("/api/shopping-list/current", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ items }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Erreur");
+      setSaveListSuccess(true);
+    } catch (e: any) {
+      setSaveListErr(e.message || "Erreur");
+    } finally {
+      setSavingList(false);
+    }
   }
 
   async function handleSave() {
@@ -167,6 +215,14 @@ function ShoppingPageInner() {
   const totalKcal = items.reduce((s, it) => s + it.kcal, 0);
   const totalProt = Math.round(items.reduce((s, it) => s + it.prot, 0) * 10) / 10;
 
+  // En mode courses, les articles cochés (achetés) descendent en bas de liste
+  // pour que ce qu'il reste à acheter reste visible en premier.
+  const displayItems = useMemo(() => {
+    return items
+      .map((it, i) => ({ it, i }))
+      .sort((a, b) => (a.it.bought === b.it.bought ? 0 : a.it.bought ? 1 : -1));
+  }, [items]);
+
   // Picker : foods filtrés et groupés par type
   const filteredFoods = useMemo(() => {
     const q = pickerSearch.toLowerCase();
@@ -206,13 +262,36 @@ function ShoppingPageInner() {
               </div>
             )}
 
+            {isShoppingMode && initialIds.length === 0 && items.length === 0 && (
+              <p className="text-gray-400 text-center py-6">
+                Aucune liste enregistrée. Va sur <span className="font-medium">Mes repas</span> et clique sur "Générer ma liste de courses".
+              </p>
+            )}
+
             {/* Liste */}
             <ul className="space-y-2 mb-4">
-              {items.map((it, i) => (
-                <li key={i} className="rounded-xl bg-gray-800 border border-gray-700 px-4 py-3">
-                  <div className="flex items-center justify-between gap-2">
+              {displayItems.map(({ it, i }) => (
+                <li
+                  key={i}
+                  className={`rounded-xl border px-4 py-3 space-y-3 transition ${
+                    it.bought ? "bg-gray-800/40 border-gray-800 opacity-60" : "bg-gray-800 border-gray-700"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {isShoppingMode && (
+                      <button
+                        type="button"
+                        onClick={() => toggleBought(i)}
+                        aria-label={it.bought ? "Marquer comme non acheté" : "Marquer comme acheté"}
+                        className={`w-6 h-6 mt-0.5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${
+                          it.bought ? "border-emerald-500 bg-emerald-500" : "border-gray-500"
+                        }`}
+                      >
+                        {it.bought && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}
+                      </button>
+                    )}
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate">
+                      <p className={`font-medium wrap-break-word ${it.bought ? "line-through text-gray-500" : ""}`}>
                         {it.nom}{" "}
                         <span className="text-xs text-gray-400">({it.typeName})</span>
                       </p>
@@ -221,9 +300,11 @@ function ShoppingPageInner() {
                         {it.prot > 0 && <span className="text-emerald-400">{it.prot}g prot</span>}
                       </div>
                     </div>
+                  </div>
 
-                    {/* Stepper quantité */}
-                    <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Stepper quantité */}
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => updateGrams(i, -5)}
                         className="w-8 h-8 rounded-full bg-rose-600 hover:bg-rose-700 font-bold text-lg flex items-center justify-center active:scale-90 transition"
@@ -239,11 +320,11 @@ function ShoppingPageInner() {
                         onClick={() => updateGrams(i, 5)}
                         className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 font-bold text-lg flex items-center justify-center active:scale-90 transition"
                       >+</button>
-                      <button
-                        onClick={() => removeItem(i)}
-                        className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600 text-gray-400 flex items-center justify-center active:scale-90 transition ml-1"
-                      >✕</button>
                     </div>
+                    <button
+                      onClick={() => removeItem(i)}
+                      className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600 text-gray-400 flex items-center justify-center active:scale-90 transition"
+                    >✕</button>
                   </div>
                 </li>
               ))}
@@ -252,7 +333,7 @@ function ShoppingPageInner() {
             {/* Bouton ajouter */}
             <button
               onClick={() => setShowPicker(true)}
-              className="w-full py-3 rounded-xl border-2 border-dashed border-gray-600 text-gray-400 hover:border-blue-500 hover:text-blue-400 font-semibold transition"
+              className="w-full py-3 mb-3 rounded-xl border-2 border-dashed border-gray-600 text-gray-400 hover:border-blue-500 hover:text-blue-400 font-semibold transition"
             >
               + Ajouter un aliment
             </button>
@@ -268,7 +349,7 @@ function ShoppingPageInner() {
                 {saveErr}
               </div>
             )}
-            {items.length > 0 && initialIds.length > 0 && !saveSuccess && (
+            {isEditMode && items.length > 0 && !saveSuccess && (
               <button
                 onClick={handleSave}
                 disabled={saving}
@@ -278,6 +359,37 @@ function ShoppingPageInner() {
               >
                 {saving ? "Enregistrement…" : "💾 Enregistrer"}
               </button>
+            )}
+
+            {isShoppingMode && (
+              <>
+                {initialIds.length > 1 && (
+                  <p className="text-xs text-gray-500 text-center mb-2">
+                    Liste combinée pour {initialIds.length} repas — les ajustements de quantité ne sont pas enregistrés dans tes repas.
+                  </p>
+                )}
+                {saveListSuccess && (
+                  <div className="rounded-xl bg-emerald-900/40 border border-emerald-700 text-emerald-200 px-4 py-3 text-sm text-center mb-2">
+                    ✅ Liste enregistrée
+                  </div>
+                )}
+                {saveListErr && (
+                  <div className="rounded-xl bg-rose-900/40 border border-rose-700 text-rose-200 px-4 py-3 text-sm text-center mb-2">
+                    {saveListErr}
+                  </div>
+                )}
+                {items.length > 0 && (
+                  <button
+                    onClick={handleSaveList}
+                    disabled={savingList}
+                    className={`w-full py-3 rounded-xl font-semibold text-white transition ${
+                      savingList ? "bg-gray-600 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+                    }`}
+                  >
+                    {savingList ? "Enregistrement…" : "💾 Enregistrer ma liste"}
+                  </button>
+                )}
+              </>
             )}
           </>
         )}

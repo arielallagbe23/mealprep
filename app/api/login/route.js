@@ -49,6 +49,7 @@ export async function POST(req) {
       uid: doc.id,
       email: user.email,
       nickname: user.nickname || null,
+      role: user.role === "admin" ? "admin" : "user",
     };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 
@@ -60,6 +61,7 @@ export async function POST(req) {
       email: payload.email,
       nickname: payload.nickname,
       displayName: payload.nickname,
+      role: payload.role,
       user: payload,
     });
 

@@ -40,9 +40,10 @@ export default function LoginPage() {
         uid: data.uid,         // 🔑 le vrai identifiant retourné par ton API / Firebase
         email: data.email || "",
         nickname: data.displayName || undefined,
+        role: data.role === "admin" ? "admin" : "user",
       });
 
-      router.replace("/composer");
+      router.replace("/performance");
     } catch (err: unknown) {
       setMsg(getErrorMessage(err));
     } finally {
