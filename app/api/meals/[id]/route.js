@@ -3,6 +3,29 @@ export const runtime = "nodejs";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { requireAuth } from "@/lib/authMiddleware";
 
+export async function GET(_req, context) {
+  const user = await requireAuth();
+  if (!user) return new Response(JSON.stringify({ error: "Non autorisé" }), { status: 401 });
+
+  const { id } = await context.params;
+  if (!id) return new Response(JSON.stringify({ error: "id requis" }), { status: 400 });
+
+  try {
+    const doc = await adminDb.collection("meals").doc(id).get();
+    if (!doc.exists) return new Response(JSON.stringify({ error: "Repas introuvable" }), { status: 404 });
+
+    const data = doc.data();
+    return new Response(JSON.stringify({
+      id: doc.id,
+      ...data,
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : null,
+    }), { status: 200 });
+  } catch (e) {
+    console.error("MEAL GET ERROR", e);
+    return new Response(JSON.stringify({ error: "Erreur serveur" }), { status: 500 });
+  }
+}
+
 export async function PATCH(req, context) {
   const user = await requireAuth();
   if (!user) return new Response(JSON.stringify({ error: "Non autorisé" }), { status: 401 });
@@ -12,7 +35,7 @@ export async function PATCH(req, context) {
 
   try {
     const body = await req.json();
-    const { items, name } = body || {};
+    const { items, name, mealType } = body || {};
 
     const updates = { updatedAt: new Date().toISOString() };
 
@@ -31,6 +54,9 @@ export async function PATCH(req, context) {
     }
 
     if (name !== undefined) {
+      if (user.role !== "admin") {
+        return new Response(JSON.stringify({ error: "Accès réservé aux admins" }), { status: 403 });
+      }
       const cleanName = String(name).trim();
       if (!cleanName) {
         return new Response(JSON.stringify({ error: "name requis" }), { status: 400 });
@@ -38,7 +64,18 @@ export async function PATCH(req, context) {
       updates.name = cleanName;
     }
 
-    if (updates.items === undefined && updates.name === undefined) {
+    if (mealType !== undefined) {
+      if (user.role !== "admin") {
+        return new Response(JSON.stringify({ error: "Accès réservé aux admins" }), { status: 403 });
+      }
+      const DAY_MEAL_KEYS = ["petit_dejeuner", "dejeuner", "collation_apres_midi", "diner", "collation_soir"];
+      if (mealType !== null && !DAY_MEAL_KEYS.includes(mealType)) {
+        return new Response(JSON.stringify({ error: "mealType invalide" }), { status: 400 });
+      }
+      updates.mealType = mealType;
+    }
+
+    if (updates.items === undefined && updates.name === undefined && updates.mealType === undefined) {
       return new Response(JSON.stringify({ error: "Aucune modification fournie" }), { status: 400 });
     }
 
@@ -53,6 +90,7 @@ export async function PATCH(req, context) {
 export async function DELETE(_req, context) {
   const user = await requireAuth();
   if (!user) return new Response(JSON.stringify({ error: "Non autorisé" }), { status: 401 });
+  if (user.role !== "admin") return new Response(JSON.stringify({ error: "Accès réservé aux admins" }), { status: 403 });
 
   // ⬅️ params est un Promise maintenant
   const { id } = await context.params;

@@ -48,7 +48,7 @@ export async function POST(req) {
 
   try {
     const body = await req.json();
-    const { userId, name, portions = 1, items = [] } = body || {};
+    const { userId, name, mealType = null, portions = 1, items = [] } = body || {};
 
     if (!userId || !name || !Array.isArray(items) || items.length === 0) {
       return new Response(
@@ -69,6 +69,7 @@ export async function POST(req) {
     await adminDb.collection("meals").add({
       userId,
       name,
+      mealType: mealType || null,
       portions: Number(portions) || 1,
       items: cleanItems,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),

@@ -3,10 +3,17 @@ import { useEffect, useMemo, useState } from "react";
 import RequireAuth from "@/components/RequireAuth";
 import Sidebar from "@/components/Sidebar";
 import BackButton from "@/components/BackButton";
+import { useAuth } from "@/components/useAuth";
 import { DAY_MEAL_SLOTS, type DayMealKey } from "@/app/composer/constants";
 
-function categoryOf(name: string) {
-  const prefix = name.split("—")[0]?.trim();
+function categoryOf(meal: Meal) {
+  if (meal.mealType) {
+    const byKey = DAY_MEAL_SLOTS.find((s) => s.key === meal.mealType);
+    if (byKey) return byKey.label;
+  }
+  // Repas plus anciens sans mealType : on retombe sur l'ancienne heuristique
+  // (préfixe du nom), pour ne pas tout renvoyer dans "Autres" d'un coup.
+  const prefix = meal.name.split("—")[0]?.trim();
   const match = DAY_MEAL_SLOTS.find((s) => s.label === prefix);
   return match?.label ?? "Autres";
 }
@@ -32,6 +39,7 @@ type Meal = {
   name: string;
   portions: number;
   items?: MealItem[];
+  mealType?: DayMealKey | null;
 };
 
 type DayStats = { calories: number; proteines: number };
@@ -88,6 +96,9 @@ function Gauge({ value, previewValue = 0, max, label, color, unit = "", inverse 
 }
 
 export default function MealsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [meals, setMeals] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -150,7 +161,7 @@ export default function MealsPage() {
           const updated = { ...c };
           let changed = false;
           for (const m of meals) {
-            if (categoryOf(m.name) === label && updated[m.id]) {
+            if (categoryOf(m) === label && updated[m.id]) {
               updated[m.id] = false;
               changed = true;
             }
@@ -233,7 +244,7 @@ export default function MealsPage() {
   const groupedMeals = useMemo(() => {
     const groups: Record<string, Meal[]> = {};
     for (const m of meals) {
-      const cat = categoryOf(m.name);
+      const cat = categoryOf(m);
       (groups[cat] ||= []).push(m);
     }
     const slotGroups = DAY_MEAL_SLOTS.map((slot) => ({
@@ -411,6 +422,21 @@ export default function MealsPage() {
     }
   }
 
+  async function updateMealType(id: string, newType: DayMealKey | null) {
+    setMeals((ms) => ms.map((m) => (m.id === id ? { ...m, mealType: newType } : m)));
+    try {
+      const res = await fetch(`/api/meals/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ mealType: newType }),
+      });
+      if (!res.ok) throw new Error("Erreur");
+    } catch {
+      alert("Impossible de changer le créneau de ce repas");
+    }
+  }
+
   if (loading) return <RequireAuth><div className="min-h-screen bg-gray-900 flex flex-col md:flex-row"><Sidebar /><main className="flex-1 p-6 text-white">Chargement…</main></div></RequireAuth>;
   if (err) return <RequireAuth><div className="min-h-screen bg-gray-900 flex flex-col md:flex-row"><Sidebar /><main className="flex-1 p-6 text-white"><p className="text-red-400">{err}</p></main></div></RequireAuth>;
 
@@ -460,7 +486,7 @@ export default function MealsPage() {
 
             return (
             <div key={category}>
-              <div className="flex items-center justify-between mb-3 px-1 py-1 border-b border-gray-700">
+              <div className="mb-3 px-1 py-1 border-b border-gray-700 pb-2">
                 <div className="flex items-center gap-2.5">
                   {slotKey !== null && (
                     <input
@@ -476,11 +502,11 @@ export default function MealsPage() {
                   </h2>
                 </div>
                 {pct !== null && (
-                  <span className={`text-sm font-semibold ${isActive ? "text-emerald-400" : "text-gray-500"}`}>
+                  <p className={`text-xs font-medium mt-0.5 ${isActive ? "text-emerald-400" : "text-gray-500"}`}>
                     {pct}%
                     {targetKcal !== null ? ` · ${targetKcal} kcal` : ""}
                     {targetProt !== null ? ` · ${targetProt}g prot` : ""}
-                  </span>
+                  </p>
                 )}
               </div>
               <div className={isActive ? "" : "opacity-40"}>
@@ -517,7 +543,7 @@ export default function MealsPage() {
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      {isEditing ? (
+                      {isEditing && isAdmin ? (
                         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                           <input
                             autoFocus
@@ -546,12 +572,14 @@ export default function MealsPage() {
                       ) : (
                         <div className="flex items-start gap-2">
                           <p className="font-semibold wrap-break-word">{m.name}</p>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); startEditing(m); }}
-                            className="text-gray-500 hover:text-gray-300 shrink-0 mt-0.5"
-                            aria-label="Renommer le repas"
-                          >✏️</button>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); startEditing(m); }}
+                              className="text-gray-500 hover:text-gray-300 shrink-0 mt-0.5"
+                              aria-label="Renommer le repas"
+                            >✏️</button>
+                          )}
                         </div>
                       )}
                       <div className="flex flex-wrap gap-x-3 mt-0.5 text-sm">
@@ -561,6 +589,23 @@ export default function MealsPage() {
                           <span className={`font-medium ${kcalRestant >= 0 ? "text-gray-400" : "text-rose-400"}`}>
                             → {kcalRestant >= 0 ? `${kcalRestant} restant` : `${Math.abs(kcalRestant)} dépassé`}
                           </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-gray-500">Créneau :</span>
+                        {isAdmin ? (
+                          <select
+                            value={m.mealType ?? ""}
+                            onChange={(e) => updateMealType(m.id, (e.target.value || null) as DayMealKey | null)}
+                            className="bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-0.5 text-gray-300"
+                          >
+                            <option value="">Autres</option>
+                            {DAY_MEAL_SLOTS.map((slot) => (
+                              <option key={slot.key} value={slot.key}>{slot.label}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-gray-300">{categoryOf(m)}</span>
                         )}
                       </div>
                     </div>
@@ -587,11 +632,13 @@ export default function MealsPage() {
                         title="Modifier repas"
                         className="w-10 h-10 m-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-90 transition flex items-center justify-center text-lg"
                       >📝</a>
-                      <button
-                        onClick={() => onDelete(m.id)}
-                        disabled={!!deleting[m.id]}
-                        className="w-10 h-10 m-1 rounded-xl bg-rose-700 hover:bg-rose-800 active:scale-90 transition flex items-center justify-center text-lg disabled:opacity-50"
-                      >🗑️</button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => onDelete(m.id)}
+                          disabled={!!deleting[m.id]}
+                          className="w-10 h-10 m-1 rounded-xl bg-rose-700 hover:bg-rose-800 active:scale-90 transition flex items-center justify-center text-lg disabled:opacity-50"
+                        >🗑️</button>
+                      )}
                     </div>
                   </div>
                 </li>

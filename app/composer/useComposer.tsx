@@ -458,6 +458,7 @@ export function useComposer(apiBaseUrl = "") {
       const payload = {
         userId,
         name: autoName,
+        mealType: composingMeal,
         portions: nbRepas,
         items: selectedList.map((f) => ({
           id: f.id,

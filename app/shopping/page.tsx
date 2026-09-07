@@ -6,6 +6,8 @@ import { useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/RequireAuth";
 import Sidebar from "@/components/Sidebar";
 import BackButton from "@/components/BackButton";
+import { useAuth } from "@/components/useAuth";
+import { DAY_MEAL_SLOTS, type DayMealKey } from "@/app/composer/constants";
 
 type Item = {
   foodId: string | null;
@@ -47,6 +49,8 @@ export default function ShoppingPage() {
 
 function ShoppingPageInner() {
   const sp = useSearchParams();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   const initialIds = useMemo(() => (sp.get("ids") || "").split(",").filter(Boolean), [sp]);
   const initialPortions = useMemo(() => {
@@ -66,6 +70,10 @@ function ShoppingPageInner() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Infos du repas (mode édition d'un seul repas) : nom + créneau
+  const [mealName, setMealName] = useState("");
+  const [mealType, setMealType] = useState<DayMealKey | "">("");
 
   // Sauvegarde de la liste de courses (mode "courses")
   const [savingList, setSavingList] = useState(false);
@@ -112,6 +120,19 @@ function ShoppingPageInner() {
         .finally(() => setLoading(false));
     }
   }, []);
+
+  // Mode édition d'un seul repas : charger son nom et son créneau
+  useEffect(() => {
+    if (!isEditMode) return;
+    fetch(`/api/meals/${initialIds[0]}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) return;
+        setMealName(data.name || "");
+        setMealType(data.mealType || "");
+      })
+      .catch(() => {});
+  }, [isEditMode, initialIds]);
 
   // Charger le référentiel pour le picker
   useEffect(() => {
@@ -171,13 +192,19 @@ function ShoppingPageInner() {
     setSaveErr(null);
     try {
       // Met à jour chaque repas source avec les nouvelles quantités
+      // (+ nom et créneau si admin et en mode édition d'un seul repas)
+      const body: Record<string, unknown> = { items };
+      if (isAdmin && isEditMode) {
+        body.name = mealName;
+        body.mealType = mealType || null;
+      }
       await Promise.all(
         initialIds.map((id) =>
           fetch(`/api/meals/${id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
-            body: JSON.stringify({ items }),
+            body: JSON.stringify(body),
           }).then(async (r) => {
             if (!r.ok) throw new Error((await r.json())?.error || "Erreur");
           })
@@ -251,6 +278,43 @@ function ShoppingPageInner() {
 
         {!loading && !err && (
           <>
+            {/* Infos repas (mode édition d'un seul repas) */}
+            {isEditMode && (mealName || isAdmin) && (
+              <div className="mb-4 rounded-xl bg-gray-800 border border-gray-700 px-4 py-3 space-y-2">
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Nom du repas</p>
+                  {isAdmin ? (
+                    <input
+                      value={mealName}
+                      onChange={(e) => setMealName(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm font-medium text-white"
+                    />
+                  ) : (
+                    <p className="font-medium">{mealName}</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Créneau</p>
+                  {isAdmin ? (
+                    <select
+                      value={mealType}
+                      onChange={(e) => setMealType(e.target.value as DayMealKey | "")}
+                      className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white"
+                    >
+                      <option value="">Autres</option>
+                      {DAY_MEAL_SLOTS.map((slot) => (
+                        <option key={slot.key} value={slot.key}>{slot.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-sm text-gray-300">
+                      {DAY_MEAL_SLOTS.find((s) => s.key === mealType)?.label || "Autres"}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Total */}
             {items.length > 0 && (
               <div className="mb-4 rounded-xl bg-gray-800 border border-gray-700 px-4 py-3 flex justify-between text-sm">
