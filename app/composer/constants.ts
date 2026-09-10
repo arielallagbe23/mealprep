@@ -1,15 +1,15 @@
 export const RATIOS: Record<string, number> = {
-  Féculents: 0.12,
-  Protéines: 0.34,
-  Légumes: 0.08,
-  Sides: 0.46,
+  Féculents: 0.30,
+  Protéines: 0.30,
+  Légumes: 0.10,
+  Sides: 0.30,
 };
 
 export const FECULENTS_ALLOWED_SLOTS: string[] = ["diner"];
 
 export const CAPS_GRAMS: Record<string, { min?: number; max?: number }> = {
-  Légumes: { min: 250, max: 500 },
-  Sides: { min: 80, max: 160 },
+  Légumes: { min: 250, max: 300 },
+  Sides: { max: 160 },
 };
 
 export const DAY_MEAL_SLOTS = [

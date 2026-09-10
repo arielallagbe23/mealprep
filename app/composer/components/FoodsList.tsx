@@ -45,7 +45,7 @@ export default function FoodsList({
           <h2 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">
             {type}
           </h2>
-          <ul className="space-y-4">
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {items.map((item) => {
               const isSel = !!selected[item.id];
               const grams = selected[item.id]?.grams ?? 0;

@@ -9,7 +9,8 @@ import {
   ShoppingCart,
   Database,
   BarChart2,
-  Calculator,
+  UserCircle,
+  CalendarDays,
   LogOut,
   Menu,
   X,
@@ -17,11 +18,12 @@ import {
 
 const NAV_ITEMS = [
   { href: "/composer",         label: "Composer un repas",        icon: UtensilsCrossed, adminOnly: true },
-  { href: "/meals",            label: "Mes repas enregistrés",    icon: BookOpen },
+  { href: "/meals",            label: "Mes repas enregistrés",    icon: BookOpen,        adminOnly: true },
+  { href: "/planning",         label: "Planifier ma semaine",     icon: CalendarDays },
   { href: "/shopping",         label: "Liste de courses",         icon: ShoppingCart },
   { href: "/referentiel",      label: "Référentiel aliments",     icon: Database,        adminOnly: true },
   { href: "/performance",      label: "Performance",              icon: BarChart2 },
-  { href: "/comptage-calories",label: "Comptage calorie",         icon: Calculator },
+  { href: "/comptage-calories",label: "Info user",                icon: UserCircle },
 ];
 
 export default function Sidebar() {

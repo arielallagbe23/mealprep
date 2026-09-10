@@ -78,6 +78,33 @@ export function useComposer(apiBaseUrl = "") {
     };
   }, [apiBaseUrl]);
 
+  // Pré-remplit l'apport calorique et l'objectif protéines avec ceux définis
+  // dans Comptage calories, pour ne pas avoir à les ressaisir à chaque repas.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`${apiBaseUrl}/api/calories`, { credentials: "include" });
+        if (!res.ok || !alive) return;
+        const data = await res.json();
+        if (data.dailyLimit > 0) setDailyKcal((v) => (v === "" ? String(data.dailyLimit) : v));
+        if (data.dailyProteinGoal > 0) setDailyProteines((v) => (v === "" ? String(data.dailyProteinGoal) : v));
+        if (Array.isArray(data.activeMealSlots) && data.activeMealSlots.length > 0) {
+          const fromProfile = { ...INITIAL_ACTIVE_MEALS };
+          for (const key of Object.keys(fromProfile) as DayMealKey[]) {
+            fromProfile[key] = data.activeMealSlots.includes(key);
+          }
+          setActiveMeals(fromProfile);
+        }
+      } catch {
+        // Pas bloquant : l'utilisateur peut toujours saisir manuellement
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [apiBaseUrl]);
+
   const toggleMeal = (key: DayMealKey) => {
     setActiveMeals((prev) => {
       const next = { ...prev, [key]: !prev[key] };
@@ -277,14 +304,25 @@ export function useComposer(apiBaseUrl = "") {
       return acc;
     }, {} as Record<string, { id: string; grams: number }[]>);
 
-  const applyTypeCaps = (data: SelectedMap) => {
+  const applyTypeCaps = (data: SelectedMap, kcalCeiling?: number) => {
     const byType = groupByType(data);
     Object.entries(byType).forEach(([type, items]) => {
       const cap = CAPS_GRAMS[type];
       if (!cap || items.length === 0) return;
       const totalG = items.reduce((s, it) => s + it.grams, 0);
       let targetTotalG = totalG;
-      if (cap.min != null) targetTotalG = Math.max(targetTotalG, cap.min);
+      if (cap.min != null) {
+        // Ne force le plancher en grammes que s'il ne fait pas, à lui seul,
+        // dépasser tout le budget calorique du repas (aliment plus dense
+        // que ce que cette catégorie suppose habituellement — ex: un fruit
+        // taggé "Légumes", ou un condiment très calorique).
+        const currentKcal = items.reduce((s, it) => s + it.grams * kcalPerGram(it.id), 0);
+        const projectedFactor = cap.min / (totalG || 1);
+        const projectedKcal = currentKcal * projectedFactor;
+        if (kcalCeiling == null || projectedKcal <= kcalCeiling) {
+          targetTotalG = Math.max(targetTotalG, cap.min);
+        }
+      }
       if (cap.max != null) targetTotalG = Math.min(targetTotalG, cap.max);
       const factor = targetTotalG / (totalG || 1);
       items.forEach((it) => {
@@ -370,10 +408,34 @@ export function useComposer(apiBaseUrl = "") {
 
     const next: SelectedMap = {};
     const kcalPerGramFood = (f: Food) => (Number(f.caloriesPer100g) || 0) / 100;
+    const proteinPerGramFood = (f: Food) => (Number(f.proteinesPer100g) || 0) / 100;
 
-    Object.entries(RATIOS).forEach(([type]) => {
+    // 1) Protéines en priorité : on vise l'objectif de protéines du repas
+    // directement (peu importe la part de calories que ça représente),
+    // pour qu'un aliment "Sides" très calorique ne puisse plus l'écraser.
+    let proteinKcalUsed = 0;
+    const proteinItems = selByType["Protéines"] || [];
+    if (proteinItems.length > 0 && mealTargetProteines > 0) {
+      const perItemProt = mealTargetProteines / proteinItems.length;
+      for (const f of proteinItems) {
+        const ppg = proteinPerGramFood(f) || 0.01;
+        const grams = round5(perItemProt / ppg);
+        next[f.id] = { grams };
+        proteinKcalUsed += grams * kcalPerGramFood(f);
+      }
+    }
+
+    // 2) Le reste du budget calorique est réparti entre les autres
+    // catégories (Féculents, Légumes, Sides), au prorata de leurs ratios.
+    const remainingKcal = Math.max(0, mealTargetKcal - proteinKcalUsed);
+    const otherRatiosSum = Object.entries(RATIOS)
+      .filter(([type]) => type !== "Protéines")
+      .reduce((s, [, r]) => s + r, 0) || 1;
+
+    Object.entries(RATIOS).forEach(([type, ratio]) => {
+      if (type === "Protéines") return;
       const items = selByType[type] || [];
-      const targetK = targets[type] || 0;
+      const targetK = remainingKcal * (ratio / otherRatiosSum);
       if (items.length === 0 || targetK <= 0) return;
 
       const perItemK = targetK / items.length;
@@ -385,15 +447,34 @@ export function useComposer(apiBaseUrl = "") {
       }
     });
 
-    const initialTotal = computeTotalK(next);
-    if (initialTotal > 0) {
-      const factor = mealTargetKcal / initialTotal;
-      Object.keys(next).forEach((id) => {
-        next[id] = { grams: round5(next[id].grams * factor) };
+    // 3) Féculents/Légumes/Sides apportent aussi un peu de protéine : si le
+    // total dépasse l'objectif, on retire l'excédent sur les Protéines
+    // (pas sur les autres, dont les quantités reflètent déjà leur budget
+    // calorique) pour ne pas cumuler les deux sources.
+    if (proteinItems.length > 0) {
+      let otherProtein = 0;
+      Object.entries(selByType).forEach(([type, items]) => {
+        if (type === "Protéines") return;
+        for (const f of items) {
+          otherProtein += (next[f.id]?.grams || 0) * proteinPerGramFood(f);
+        }
       });
+      const proteinFromProteinItems = proteinItems.reduce(
+        (s, f) => s + (next[f.id]?.grams || 0) * proteinPerGramFood(f),
+        0
+      );
+      const excess = proteinFromProteinItems + otherProtein - mealTargetProteines;
+      if (excess > 0) {
+        const excessPerItem = excess / proteinItems.length;
+        for (const f of proteinItems) {
+          const ppg = proteinPerGramFood(f) || 0.01;
+          const curGrams = next[f.id]?.grams || 0;
+          next[f.id] = { grams: Math.max(0, round5(curGrams - excessPerItem / ppg)) };
+        }
+      }
     }
 
-    applyTypeCaps(next);
+    applyTypeCaps(next, mealTargetKcal);
     applyItemCaps(next);
     adjustDownToTarget(next, mealTargetKcal);
 

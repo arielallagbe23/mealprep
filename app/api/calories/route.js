@@ -4,8 +4,10 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/authMiddleware";
 import { adminDb } from "@/lib/firebaseAdmin";
 
+const DAY_MEAL_KEYS = ["petit_dejeuner", "dejeuner", "collation_apres_midi", "diner", "collation_soir"];
+
 // GET /api/calories
-// Returns { entries: { "YYYY-MM-DD": { calories, proteines } }, dailyLimit, limitHistory, dailyProteinGoal }
+// Returns { entries: { "YYYY-MM-DD": { calories, proteines } }, dailyLimit, limitHistory, dailyProteinGoal, activeMealSlots }
 export async function GET() {
   const user = await requireAuth();
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -29,8 +31,11 @@ export async function GET() {
     const dailyLimit = calData.dailyLimit ?? 2000;
     const limitHistory = calData.limitHistory ?? [];
     const dailyProteinGoal = calData.dailyProteinGoal ?? 0;
+    const activeMealSlots = Array.isArray(calData.activeMealSlots) && calData.activeMealSlots.length > 0
+      ? calData.activeMealSlots
+      : DAY_MEAL_KEYS;
 
-    return NextResponse.json({ entries, dailyLimit, limitHistory, dailyProteinGoal });
+    return NextResponse.json({ entries, dailyLimit, limitHistory, dailyProteinGoal, activeMealSlots });
   } catch (e) {
     console.error("GET /api/calories error:", e);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
@@ -85,6 +90,19 @@ export async function PUT(req) {
       update.dailyProteinGoal = dailyProteinGoal;
     }
 
+    // Update les repas mangés dans la journée (créneaux actifs par défaut)
+    if (body?.activeMealSlots !== undefined) {
+      const activeMealSlots = body.activeMealSlots;
+      if (
+        !Array.isArray(activeMealSlots) ||
+        activeMealSlots.length === 0 ||
+        !activeMealSlots.every((k) => DAY_MEAL_KEYS.includes(k))
+      ) {
+        return NextResponse.json({ error: "activeMealSlots invalide" }, { status: 400 });
+      }
+      update.activeMealSlots = activeMealSlots;
+    }
+
     await docRef.set(update, { merge: true });
 
     const updatedSnap = await docRef.get();
@@ -95,6 +113,9 @@ export async function PUT(req) {
       dailyLimit: updated.dailyLimit ?? 2000,
       limitHistory: updated.limitHistory ?? [],
       dailyProteinGoal: updated.dailyProteinGoal ?? 0,
+      activeMealSlots: Array.isArray(updated.activeMealSlots) && updated.activeMealSlots.length > 0
+        ? updated.activeMealSlots
+        : DAY_MEAL_KEYS,
     });
   } catch (e) {
     console.error("PUT /api/calories error:", e);

@@ -37,6 +37,8 @@ export default function MealSummary({
   const protCible = Math.round(mealTargetProteines * nbRepas * 10) / 10;
   const protPct = protCible > 0 ? Math.min(100, Math.round((protTotal / protCible) * 100)) : 0;
   const kcalRemaining = Math.max(0, kcalCible - kcalTotal);
+  const kcalOver = kcalCible > 0 && kcalTotal > kcalCible;
+  const kcalPct = kcalCible > 0 ? Math.min(100, Math.round((kcalTotal / kcalCible) * 100)) : 0;
 
   async function handleLogCalories() {
     if (kcalTotal <= 0) return;
@@ -129,12 +131,34 @@ export default function MealSummary({
           </ul>
         )}
 
-        {/* Totaux */}
-        <div className="mt-3 flex justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
-          <span>Total</span>
-          <span>{kcalTotal} / {kcalCible} kcal</span>
-        </div>
       </div>
+
+      {/* Jauge calories */}
+      {kcalCible > 0 && (
+        <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 space-y-2 shadow-sm">
+          <div className="flex justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+            <span>Calories</span>
+            <span className={kcalOver ? "text-rose-400" : kcalPct >= 90 ? "text-emerald-500" : "text-blue-400"}>
+              {kcalTotal} / {kcalCible} kcal
+            </span>
+          </div>
+          <div className="w-full h-3 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                kcalOver ? "bg-rose-500" : kcalPct >= 90 ? "bg-emerald-500" : "bg-blue-500"
+              }`}
+              style={{ width: `${kcalPct}%` }}
+            />
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
+            {kcalOver
+              ? `${kcalTotal - kcalCible} kcal au-dessus de la cible`
+              : kcalPct >= 100
+              ? "Objectif atteint ✅"
+              : `${kcalPct}% — encore ${kcalCible - kcalTotal} kcal`}
+          </div>
+        </div>
+      )}
 
       {/* Jauge protéines */}
       {protCible > 0 && (

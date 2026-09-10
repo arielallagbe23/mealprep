@@ -57,7 +57,7 @@ export default function ParamsCard({
       </h1>
 
       <div className="grid grid-cols-1 gap-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <label className="text-sm text-gray-700 dark:text-gray-300">
             Apport journalier (kcal)
             <input

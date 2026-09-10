@@ -165,6 +165,28 @@ function ShoppingPageInner() {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, bought: !it.bought } : it)));
   }
 
+  async function handleClearList() {
+    if (!confirm("Vider la liste de courses ?")) return;
+    setSavingList(true);
+    setSaveListErr(null);
+    setSaveListSuccess(false);
+    try {
+      const res = await fetch("/api/shopping-list/current", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ items: [] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Erreur");
+      setItems([]);
+    } catch (e: any) {
+      setSaveListErr(e.message || "Erreur");
+    } finally {
+      setSavingList(false);
+    }
+  }
+
   async function handleSaveList() {
     setSavingList(true);
     setSaveListErr(null);
@@ -271,6 +293,7 @@ function ShoppingPageInner() {
         <Sidebar />
         <main className="flex-1 px-4 py-6 pb-10">
         <div className="max-w-xl mx-auto w-full">
+        <BackButton label="Retour" fallbackHref="/meals" className="mb-3 w-fit" />
         <h1 className="text-2xl font-bold mb-4">🛒 Liste de courses</h1>
 
         {loading && <p className="text-gray-400">Chargement...</p>}
@@ -443,15 +466,24 @@ function ShoppingPageInner() {
                   </div>
                 )}
                 {items.length > 0 && (
-                  <button
-                    onClick={handleSaveList}
-                    disabled={savingList}
-                    className={`w-full py-3 rounded-xl font-semibold text-white transition ${
-                      savingList ? "bg-gray-600 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
-                    }`}
-                  >
-                    {savingList ? "Enregistrement…" : "💾 Enregistrer ma liste"}
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleSaveList}
+                      disabled={savingList}
+                      className={`w-full py-3 rounded-xl font-semibold text-white transition ${
+                        savingList ? "bg-gray-600 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+                      }`}
+                    >
+                      {savingList ? "Enregistrement…" : "💾 Enregistrer ma liste"}
+                    </button>
+                    <button
+                      onClick={handleClearList}
+                      disabled={savingList}
+                      className="w-full py-3 rounded-xl font-semibold text-rose-200 bg-rose-900/40 border border-rose-700 hover:bg-rose-900/60 transition disabled:opacity-50"
+                    >
+                      🧹 Vider la liste (courses terminées)
+                    </button>
+                  </div>
                 )}
               </>
             )}

@@ -39,6 +39,7 @@ export default function ReferentielPage() {
   const [page, setPage] = useState(1);
   const [newFoodName, setNewFoodName] = useState("");
   const [newFoodCalories, setNewFoodCalories] = useState("");
+  const [newFoodProteines, setNewFoodProteines] = useState("");
   const [newFoodTypeId, setNewFoodTypeId] = useState("");
   const [addingFood, setAddingFood] = useState(false);
   const [addFoodMsg, setAddFoodMsg] = useState<string | null>(null);
@@ -149,10 +150,16 @@ export default function ReferentielPage() {
     e.preventDefault();
     const nom = newFoodName.trim();
     const caloriesPer100g = Number(newFoodCalories);
+    const proteinesPer100g = newFoodProteines.trim() === "" ? 0 : Number(newFoodProteines);
     const typeId = newFoodTypeId.trim();
 
     if (!nom || !Number.isFinite(caloriesPer100g) || caloriesPer100g < 0 || !typeId) {
       setActionErr("Nom, calories et type sont requis");
+      setAddFoodMsg(null);
+      return;
+    }
+    if (!Number.isFinite(proteinesPer100g) || proteinesPer100g < 0) {
+      setActionErr("Protéines invalides");
       setAddFoodMsg(null);
       return;
     }
@@ -166,7 +173,7 @@ export default function ReferentielPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ nom, caloriesPer100g, typeId }),
+        body: JSON.stringify({ nom, caloriesPer100g, proteinesPer100g, typeId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Ajout impossible");
@@ -175,6 +182,7 @@ export default function ReferentielPage() {
       setFoods((prev) => [{ ...data, typeName }, ...prev]);
       setNewFoodName("");
       setNewFoodCalories("");
+      setNewFoodProteines("");
       setNewFoodTypeId("");
       setAddFoodMsg("Aliment ajouté");
       setPage(1);
@@ -334,7 +342,7 @@ export default function ReferentielPage() {
             <h2 className="text-lg font-semibold mb-3">Ajouter un aliment</h2>
             <form
               onSubmit={handleCreateFood}
-              className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_1fr_auto] gap-3"
+              className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_1fr_1fr_auto] gap-3"
             >
               <input
                 value={newFoodName}
@@ -349,6 +357,15 @@ export default function ReferentielPage() {
                 min={0}
                 step={1}
                 placeholder="Calories / 100g"
+                className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2"
+              />
+              <input
+                value={newFoodProteines}
+                onChange={(e) => setNewFoodProteines(e.target.value)}
+                type="number"
+                min={0}
+                step={0.1}
+                placeholder="Protéines / 100g"
                 className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2"
               />
               <select

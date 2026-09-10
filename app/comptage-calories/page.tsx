@@ -5,6 +5,7 @@ import Link from "next/link";
 import RequireAuth from "@/components/RequireAuth";
 import Sidebar from "@/components/Sidebar";
 import { useAuth } from "@/components/useAuth";
+import { DAY_MEAL_SLOTS, type DayMealKey } from "@/app/composer/constants";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,7 @@ type CalorieData = {
   dailyLimit: number;
   limitHistory: LimitRecord[];
   dailyProteinGoal: number;
+  activeMealSlots: DayMealKey[];
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -58,6 +60,10 @@ export default function ComptageCalories() {
   const [protGoalMsg, setProtGoalMsg] = useState("");
   const [protGoalLoading, setProtGoalLoading] = useState(false);
 
+  // Repas mangés (créneaux actifs par défaut)
+  const [mealSlots, setMealSlots] = useState<DayMealKey[]>([]);
+  const [mealSlotsMsg, setMealSlotsMsg] = useState("");
+
   // ── Load data ──────────────────────────────────────────────────────────────
 
   async function loadData() {
@@ -78,6 +84,7 @@ export default function ComptageCalories() {
       }
       const d: CalorieData = await res.json();
       setData(d);
+      setMealSlots(d.activeMealSlots ?? DAY_MEAL_SLOTS.map((s) => s.key));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
     } finally {
@@ -185,6 +192,29 @@ export default function ComptageCalories() {
     }
   }
 
+  async function toggleMealSlot(key: DayMealKey) {
+    const next = mealSlots.includes(key)
+      ? mealSlots.filter((k) => k !== key)
+      : [...mealSlots, key];
+    if (next.length === 0) return; // au moins un créneau actif
+    setMealSlots(next);
+    setMealSlotsMsg("");
+    try {
+      const res = await fetch("/api/calories", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ activeMealSlots: next }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erreur");
+      setMealSlotsMsg("Préférence enregistrée ✅");
+    } catch (err: unknown) {
+      setMealSlotsMsg(err instanceof Error ? err.message : "Erreur");
+      setMealSlots(mealSlots); // revert
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -233,6 +263,39 @@ export default function ComptageCalories() {
           {error && (
             <div className="rounded-xl border border-red-700 bg-red-900/30 p-4 text-red-300 text-sm">
               {error}
+            </div>
+          )}
+
+          {data && (
+            <div className="rounded-2xl border border-gray-700 bg-gray-800 p-5 space-y-3">
+              <h2 className="font-semibold text-white">
+                Repas que tu manges
+              </h2>
+              <p className="text-xs text-gray-500">
+                Dis une fois pour toutes quels créneaux tu manges dans la journée — ça devient le réglage par défaut sur "Mes repas" et le composer, plus besoin de recocher à chaque fois.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {DAY_MEAL_SLOTS.map((slot) => {
+                  const active = mealSlots.includes(slot.key);
+                  return (
+                    <button
+                      key={slot.key}
+                      type="button"
+                      onClick={() => toggleMealSlot(slot.key)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                        active
+                          ? "bg-blue-600 border-blue-500 text-white"
+                          : "bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-600"
+                      }`}
+                    >
+                      {active ? "✓ " : ""}{slot.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {mealSlotsMsg && (
+                <p className="text-xs text-gray-400">{mealSlotsMsg}</p>
+              )}
             </div>
           )}
 

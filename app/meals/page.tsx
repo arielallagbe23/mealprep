@@ -104,6 +104,7 @@ export default function MealsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Record<string, boolean>>({});
   const [portions, setPortions] = useState<Record<string, number>>({});
+  const [weeklyCount, setWeeklyCount] = useState<Record<string, number>>({});
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -122,15 +123,6 @@ export default function MealsPage() {
 
   const todayKey = todayISO();
   const [activeSlots, setActiveSlots] = useState<Record<DayMealKey, boolean>>(INITIAL_ACTIVE_SLOTS);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(`mealSlotsActive:${todayKey}`);
-      if (raw) setActiveSlots({ ...INITIAL_ACTIVE_SLOTS, ...JSON.parse(raw) });
-    } catch {
-      // localStorage indisponible : on garde tous les créneaux actifs
-    }
-  }, [todayKey]);
 
   useEffect(() => {
     if (!stickyBarEl) { setStickyBarHeight(0); return; }
@@ -199,6 +191,25 @@ export default function MealsPage() {
           setProteinGoal(dCal.dailyProteinGoal ?? 0);
           const today = dCal.entries?.[todayISO()];
           if (today) setTodayStats({ calories: today.calories ?? 0, proteines: today.proteines ?? 0 });
+
+          // Créneaux actifs : un override du jour (localStorage) prime sur la
+          // préférence permanente définie dans "Info user".
+          let overrideForToday: Record<string, boolean> | null = null;
+          try {
+            const raw = localStorage.getItem(`mealSlotsActive:${todayKey}`);
+            if (raw) overrideForToday = JSON.parse(raw);
+          } catch {
+            // localStorage indisponible
+          }
+          if (overrideForToday) {
+            setActiveSlots({ ...INITIAL_ACTIVE_SLOTS, ...overrideForToday });
+          } else if (Array.isArray(dCal.activeMealSlots)) {
+            const fromProfile = { ...INITIAL_ACTIVE_SLOTS };
+            for (const key of Object.keys(fromProfile) as DayMealKey[]) {
+              fromProfile[key] = dCal.activeMealSlots.includes(key);
+            }
+            setActiveSlots(fromProfile);
+          }
         }
         const [rMeals, rFoods] = await Promise.all([
           fetch("/api/meals", { credentials: "include" }),
@@ -228,9 +239,11 @@ export default function MealsPage() {
         }));
         setMeals(list);
         const initP: Record<string, number> = {};
+        const initW: Record<string, number> = {};
         const initC: Record<string, boolean> = {};
-        for (const m of list) { initP[m.id] = Number(m.portions) || 1; initC[m.id] = false; }
+        for (const m of list) { initP[m.id] = Number(m.portions) || 1; initW[m.id] = 1; initC[m.id] = false; }
         setPortions(initP);
+        setWeeklyCount(initW);
         setChecked(initC);
       } catch (e: any) {
         setErr(e.message || "Erreur");
@@ -275,20 +288,19 @@ export default function MealsPage() {
     params.set("ids", selection.map(({ meal }) => meal.id).join(","));
     params.set("mode", "shop");
     for (const { meal } of selection) {
-      params.set(`p_${meal.id}`, String(portions[meal.id] ?? 1));
+      const qty = (portions[meal.id] ?? 1) * (weeklyCount[meal.id] ?? 1);
+      params.set(`p_${meal.id}`, String(r2(qty)));
     }
     return `/shopping?${params.toString()}`;
-  }, [selection, portions]);
+  }, [selection, portions, weeklyCount]);
 
-  const missingPct = dailyLimit > 0 && totalSelected.kcal > 0 && totalSelected.kcal < dailyLimit
-    ? r2(((dailyLimit - totalSelected.kcal) / totalSelected.kcal) * 100)
-    : null;
-
-  const missingProtPct = proteinGoal > 0 && totalSelected.prot > 0 && totalSelected.prot < proteinGoal
-    ? r2(((proteinGoal - totalSelected.prot) / totalSelected.prot) * 100)
-    : null;
-
-  function scaleSelectionBy(scale: number) {
+  // Complète le % manquant pour atteindre l'objectif calories du jour, en
+  // appliquant ce facteur à tous les repas sélectionnés. Les protéines ne
+  // sont pas ciblées directement : elles suivent par ricochet, puisqu'elles
+  // sont recalculées à partir des mêmes portions.
+  function reajustement() {
+    if (dailyLimit <= 0 || totalSelected.kcal <= 0) return;
+    const scale = dailyLimit / totalSelected.kcal;
     setPortions((prev) => {
       const next = { ...prev };
       for (const { meal } of selection) {
@@ -296,54 +308,6 @@ export default function MealsPage() {
       }
       return next;
     });
-  }
-
-  function completeToObjective() {
-    if (dailyLimit <= 0 || totalSelected.kcal <= 0 || totalSelected.kcal >= dailyLimit) return;
-    scaleSelectionBy(dailyLimit / totalSelected.kcal);
-  }
-
-  function completeProteinToObjective() {
-    if (proteinGoal <= 0 || totalSelected.prot <= 0 || totalSelected.prot >= proteinGoal) return;
-    scaleSelectionBy(proteinGoal / totalSelected.prot);
-  }
-
-  // Scaler chaque repas sélectionné par son propre facteur (au lieu d'un facteur
-  // unique) : seule façon d'atteindre calories ET protéines en même temps quand
-  // les repas n'ont pas le même ratio kcal/protéine que l'objectif.
-  function completeToBothObjectives() {
-    if (dailyLimit <= 0 || proteinGoal <= 0 || selection.length === 0) return;
-
-    const base = selection.map(({ meal }) => calcMeal(meal, 1));
-    const K = base.map((b) => b.kcal);
-    const P = base.map((b) => b.prot);
-
-    const a = K.reduce((s, k) => s + k * k, 0);
-    const b = K.reduce((s, k, i) => s + k * P[i], 0);
-    const c = P.reduce((s, p) => s + p * p, 0);
-    const det = a * c - b * b;
-
-    if (Math.abs(det) < 1e-6) {
-      alert("Impossible d'atteindre exactement les deux objectifs avec cette sélection (essaie avec des repas aux profils kcal/protéines plus variés).");
-      return;
-    }
-
-    const y1 = (c * dailyLimit - b * proteinGoal) / det;
-    const y2 = (-b * dailyLimit + a * proteinGoal) / det;
-
-    const next = { ...portions };
-    let hasNegative = false;
-    selection.forEach(({ meal }, i) => {
-      const x = K[i] * y1 + P[i] * y2;
-      if (x < 0) hasNegative = true;
-      next[meal.id] = r2(Math.max(0.1, x));
-    });
-
-    if (hasNegative) {
-      alert("Pour atteindre exactement les deux objectifs, certaines quantités auraient dû être négatives — elles ont été ramenées au minimum, le résultat est donc approximatif.");
-    }
-
-    setPortions(next);
   }
 
   async function handleLogSelection() {
@@ -509,7 +473,13 @@ export default function MealsPage() {
                   </p>
                 )}
               </div>
-              <div className={isActive ? "" : "opacity-40"}>
+              {!isActive && slotKey !== null && (
+                <p className="text-xs text-gray-600 italic px-1">
+                  Repas désactivé aujourd&apos;hui — coche la case pour le réactiver.
+                </p>
+              )}
+              {isActive && (
+              <div>
               {catMeals.length === 0 ? (
                 <a
                   href="/composer"
@@ -521,6 +491,7 @@ export default function MealsPage() {
               <ul className="space-y-3">
             {catMeals.map((m) => {
               const p = portions[m.id] ?? 1;
+              const wc = weeklyCount[m.id] ?? 1;
               const { kcal, prot } = calcMeal(m, p);
               const isChecked = !!checked[m.id];
               const kcalRestant = dailyLimit > 0 ? dailyLimit - todayStats.calories - kcal : null;
@@ -641,12 +612,29 @@ export default function MealsPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Fréquence hebdomadaire (pour la liste de courses) */}
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-xs text-gray-500">🗓️ Fois / semaine :</span>
+                    <button
+                      type="button"
+                      onClick={() => setWeeklyCount((s) => ({ ...s, [m.id]: Math.max(1, (s[m.id] ?? 1) - 1) }))}
+                      className="w-7 h-7 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 active:scale-90 transition flex items-center justify-center text-sm"
+                    >–</button>
+                    <span className="font-semibold text-sm w-5 text-center">{wc}</span>
+                    <button
+                      type="button"
+                      onClick={() => setWeeklyCount((s) => ({ ...s, [m.id]: (s[m.id] ?? 1) + 1 }))}
+                      className="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 active:scale-90 transition flex items-center justify-center text-sm"
+                    >+</button>
+                  </div>
                 </li>
               );
             })}
               </ul>
               )}
               </div>
+              )}
             </div>
             );
           })}
@@ -657,7 +645,7 @@ export default function MealsPage() {
 
       {/* Barre sticky de log */}
       {hasSelection && (
-        <div ref={setStickyBarEl} className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 border-t border-gray-700 px-4 py-3 space-y-2">
+        <div ref={setStickyBarEl} className="fixed bottom-0 left-0 right-0 md:left-64 z-50 bg-gray-900/95 border-t border-gray-700 px-4 py-3 space-y-2">
           <div className="max-w-xl mx-auto space-y-2">
             <div className="flex justify-between text-sm text-gray-300 px-1">
               <span>{selection.length} repas sélectionné{selection.length > 1 ? "s" : ""}</span>
@@ -673,31 +661,6 @@ export default function MealsPage() {
                 {logErr}
               </div>
             )}
-            {dailyLimit > 0 && proteinGoal > 0 && selection.length > 0 &&
-              (totalSelected.kcal !== dailyLimit || totalSelected.prot !== proteinGoal) && (
-              <button
-                onClick={completeToBothObjectives}
-                className="w-full py-2 rounded-xl font-medium text-sm text-blue-200 bg-blue-900/40 border border-blue-700 hover:bg-blue-900/60 transition"
-              >
-                🎯 Compléter aux deux objectifs (calories + protéines)
-              </button>
-            )}
-            {missingPct !== null && (
-              <button
-                onClick={completeToObjective}
-                className="w-full py-2 rounded-xl font-medium text-sm text-purple-200 bg-purple-900/40 border border-purple-700 hover:bg-purple-900/60 transition"
-              >
-                🎯 Compléter calories à l'objectif (+{missingPct}% sur tous les repas sélectionnés)
-              </button>
-            )}
-            {missingProtPct !== null && (
-              <button
-                onClick={completeProteinToObjective}
-                className="w-full py-2 rounded-xl font-medium text-sm text-emerald-200 bg-emerald-900/40 border border-emerald-700 hover:bg-emerald-900/60 transition"
-              >
-                🎯 Compléter protéines à l'objectif (+{missingProtPct}% sur tous les repas sélectionnés)
-              </button>
-            )}
             {shoppingListHref && (
               <a
                 href={shoppingListHref}
@@ -706,6 +669,13 @@ export default function MealsPage() {
                 🛒 Générer ma liste de courses
               </a>
             )}
+            <button
+              type="button"
+              onClick={reajustement}
+              className="w-full py-3 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition"
+            >
+              ⚖️ Réajustement
+            </button>
             <button
               onClick={handleLogSelection}
               disabled={logging}
