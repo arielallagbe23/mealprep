@@ -40,6 +40,7 @@ type Meal = {
   portions: number;
   items?: MealItem[];
   mealType?: DayMealKey | null;
+  preparation?: string[];
 };
 
 type DayStats = { calories: number; proteines: number };
@@ -109,6 +110,12 @@ export default function MealsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [renaming, setRenaming] = useState(false);
+
+  const [prepOpenId, setPrepOpenId] = useState<string | null>(null);
+  const [prepDraft, setPrepDraft] = useState<string[]>([]);
+  const [newStepText, setNewStepText] = useState("");
+  const [draggedStepIndex, setDraggedStepIndex] = useState<number | null>(null);
+  const [savingPrep, setSavingPrep] = useState(false);
 
   const [dailyLimit, setDailyLimit] = useState(0);
   const [proteinGoal, setProteinGoal] = useState(0);
@@ -401,6 +408,61 @@ export default function MealsPage() {
     }
   }
 
+  function togglePrep(m: Meal) {
+    if (prepOpenId === m.id) {
+      setPrepOpenId(null);
+      return;
+    }
+    setPrepOpenId(m.id);
+    setPrepDraft(Array.isArray(m.preparation) ? m.preparation : []);
+    setNewStepText("");
+  }
+
+  function addStep() {
+    const text = newStepText.trim();
+    if (!text) return;
+    setPrepDraft((s) => [...s, text]);
+    setNewStepText("");
+  }
+
+  function updateStep(idx: number, text: string) {
+    setPrepDraft((s) => s.map((step, i) => (i === idx ? text : step)));
+  }
+
+  function removeStep(idx: number) {
+    setPrepDraft((s) => s.filter((_, i) => i !== idx));
+  }
+
+  function moveStep(from: number, to: number) {
+    setPrepDraft((s) => {
+      const next = [...s];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }
+
+  async function savePrep(id: string) {
+    const cleanSteps = prepDraft.map((s) => s.trim()).filter(Boolean);
+    setSavingPrep(true);
+    try {
+      const res = await fetch(`/api/meals/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ preparation: cleanSteps }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Erreur");
+      setMeals((ms) => ms.map((m) => (m.id === id ? { ...m, preparation: cleanSteps } : m)));
+      setPrepOpenId(null);
+    } catch (e: any) {
+      alert(e.message || "Impossible d'enregistrer la préparation");
+    } finally {
+      setSavingPrep(false);
+    }
+  }
+
   if (loading) return <RequireAuth><div className="min-h-screen bg-gray-900 flex flex-col md:flex-row"><Sidebar /><main className="flex-1 p-6 text-white">Chargement…</main></div></RequireAuth>;
   if (err) return <RequireAuth><div className="min-h-screen bg-gray-900 flex flex-col md:flex-row"><Sidebar /><main className="flex-1 p-6 text-white"><p className="text-red-400">{err}</p></main></div></RequireAuth>;
 
@@ -603,6 +665,14 @@ export default function MealsPage() {
                         title="Modifier repas"
                         className="w-10 h-10 m-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-90 transition flex items-center justify-center text-lg"
                       >📝</a>
+                      <button
+                        type="button"
+                        onClick={() => togglePrep(m)}
+                        title="Préparation"
+                        className={`w-10 h-10 m-1 rounded-xl active:scale-90 transition flex items-center justify-center text-lg ${
+                          prepOpenId === m.id ? "bg-amber-500" : "bg-gray-700 hover:bg-gray-600"
+                        }`}
+                      >👨‍🍳</button>
                       {isAdmin && (
                         <button
                           onClick={() => onDelete(m.id)}
@@ -628,6 +698,85 @@ export default function MealsPage() {
                       className="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 active:scale-90 transition flex items-center justify-center text-sm"
                     >+</button>
                   </div>
+
+                  {/* Préparation */}
+                  {prepOpenId === m.id && (
+                    <div
+                      className="rounded-xl bg-amber-950/20 border border-amber-800/50 p-3 space-y-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <p className="text-xs font-semibold text-amber-300 uppercase tracking-wide">👨‍🍳 Préparation</p>
+                      {isAdmin ? (
+                        <>
+                          {prepDraft.length > 0 && (
+                            <ol className="space-y-1.5">
+                              {prepDraft.map((step, idx) => (
+                                <li
+                                  key={idx}
+                                  draggable
+                                  onDragStart={() => setDraggedStepIndex(idx)}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={() => {
+                                    if (draggedStepIndex !== null && draggedStepIndex !== idx) {
+                                      moveStep(draggedStepIndex, idx);
+                                    }
+                                    setDraggedStepIndex(null);
+                                  }}
+                                  onDragEnd={() => setDraggedStepIndex(null)}
+                                  className={`flex items-center gap-2 bg-gray-900 border rounded-lg px-2 py-1.5 cursor-grab active:cursor-grabbing ${
+                                    draggedStepIndex === idx ? "border-amber-500 opacity-50" : "border-gray-700"
+                                  }`}
+                                >
+                                  <span className="text-gray-500 shrink-0 select-none">⠿</span>
+                                  <span className="text-amber-400 font-semibold text-sm w-5 text-center shrink-0">{idx + 1}.</span>
+                                  <input
+                                    value={step}
+                                    onChange={(e) => updateStep(idx, e.target.value)}
+                                    className="flex-1 min-w-0 bg-transparent text-sm text-white focus:outline-none"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeStep(idx)}
+                                    className="text-rose-400 hover:text-rose-300 text-sm shrink-0"
+                                  >✕</button>
+                                </li>
+                              ))}
+                            </ol>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={newStepText}
+                              onChange={(e) => setNewStepText(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addStep(); } }}
+                              placeholder="Nouvelle étape…"
+                              className="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={addStep}
+                              className="w-9 h-9 shrink-0 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center justify-center"
+                            >+</button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => savePrep(m.id)}
+                            disabled={savingPrep}
+                            className="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium disabled:opacity-50"
+                          >
+                            {savingPrep ? "Enregistrement…" : "Enregistrer"}
+                          </button>
+                        </>
+                      ) : m.preparation && m.preparation.length > 0 ? (
+                        <ol className="space-y-1 list-decimal list-inside">
+                          {m.preparation.map((step, idx) => (
+                            <li key={idx} className="text-sm text-gray-200">{step}</li>
+                          ))}
+                        </ol>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">Aucune préparation renseignée.</p>
+                      )}
+                    </div>
+                  )}
                 </li>
               );
             })}

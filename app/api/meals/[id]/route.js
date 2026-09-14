@@ -35,7 +35,7 @@ export async function PATCH(req, context) {
 
   try {
     const body = await req.json();
-    const { items, name, mealType } = body || {};
+    const { items, name, mealType, preparation } = body || {};
 
     const updates = { updatedAt: new Date().toISOString() };
 
@@ -75,7 +75,22 @@ export async function PATCH(req, context) {
       updates.mealType = mealType;
     }
 
-    if (updates.items === undefined && updates.name === undefined && updates.mealType === undefined) {
+    if (preparation !== undefined) {
+      if (user.role !== "admin") {
+        return new Response(JSON.stringify({ error: "Accès réservé aux admins" }), { status: 403 });
+      }
+      if (!Array.isArray(preparation)) {
+        return new Response(JSON.stringify({ error: "preparation doit être un tableau d'étapes" }), { status: 400 });
+      }
+      updates.preparation = preparation.map((s) => String(s).trim()).filter(Boolean);
+    }
+
+    if (
+      updates.items === undefined &&
+      updates.name === undefined &&
+      updates.mealType === undefined &&
+      updates.preparation === undefined
+    ) {
       return new Response(JSON.stringify({ error: "Aucune modification fournie" }), { status: 400 });
     }
 

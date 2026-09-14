@@ -16,6 +16,7 @@ type Meal = {
   name: string;
   mealType?: DayMealKey | null;
   items?: MealItem[];
+  preparation?: string[];
 };
 
 type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
@@ -77,6 +78,9 @@ export default function PlanningPage() {
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [prepOpenSlot, setPrepOpenSlot] = useState<DayMealKey | null>(null);
+  const [addingSlot, setAddingSlot] = useState<DayMealKey | null>(null);
+  const [addedSlots, setAddedSlots] = useState<Set<DayMealKey>>(new Set());
 
   useEffect(() => {
     let alive = true;
@@ -259,6 +263,28 @@ export default function PlanningPage() {
     setSaveMsg("✅ Semaine enregistrée");
   }
 
+  // Confirme qu'un repas du jour a bien été mangé et l'ajoute au comptage
+  // calories/protéines (Performance) — cumulatif, un repas à la fois.
+  async function handleAddMealToPerf(slotKey: DayMealKey, kcal: number, prot: number) {
+    if (!todayInfo || kcal <= 0) return;
+    setAddingSlot(slotKey);
+    try {
+      const res = await fetch("/api/calories/entry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ dateKey: todayInfo.dateISO, calories: kcal, proteines: prot }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Erreur");
+      setAddedSlots((s) => new Set(s).add(slotKey));
+    } catch (e: any) {
+      alert(e.message || "Impossible d'ajouter ce repas");
+    } finally {
+      setAddingSlot(null);
+    }
+  }
+
   const weekLabel = `${fmtDateShort(weekStart)} → ${fmtDateShort(addDays(weekStart, 6))}`;
 
   // Récap du jour : les repas d'aujourd'hui avec les quantités déjà
@@ -364,6 +390,40 @@ export default function PlanningPage() {
                               ))}
                             </ul>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => setPrepOpenSlot((s) => (s === row.slotKey ? null : row.slotKey))}
+                            className="mt-2 text-xs font-medium text-amber-300 hover:text-amber-200"
+                          >
+                            👨‍🍳 {prepOpenSlot === row.slotKey ? "Masquer la préparation" : "Voir la préparation"}
+                          </button>
+                          {prepOpenSlot === row.slotKey && (
+                            row.meal.preparation && row.meal.preparation.length > 0 ? (
+                              <ol className="mt-2 space-y-1 list-decimal list-inside bg-gray-950/40 border border-amber-800/40 rounded-lg p-2.5">
+                                {row.meal.preparation.map((step, i) => (
+                                  <li key={i} className="text-sm text-gray-200">{step}</li>
+                                ))}
+                              </ol>
+                            ) : (
+                              <p className="mt-2 text-sm text-gray-500 italic">Aucune préparation renseignée.</p>
+                            )
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleAddMealToPerf(row.slotKey, row.kcal, row.prot)}
+                            disabled={addingSlot === row.slotKey || addedSlots.has(row.slotKey)}
+                            className={`mt-2 w-full py-2 rounded-lg text-sm font-semibold transition disabled:opacity-60 ${
+                              addedSlots.has(row.slotKey)
+                                ? "bg-emerald-900/40 border border-emerald-700 text-emerald-300"
+                                : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            }`}
+                          >
+                            {addedSlots.has(row.slotKey)
+                              ? "✅ Ajouté à mes performances"
+                              : addingSlot === row.slotKey
+                              ? "Ajout…"
+                              : "➕ Ajouter ce repas à mes performances"}
+                          </button>
                         </>
                       )}
                       {row.kind === "cheat" && (
