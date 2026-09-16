@@ -66,6 +66,7 @@ export async function PUT(req) {
           const entry = { mealId: cell.mealId };
           const portions = Number(cell.portions);
           if (Number.isFinite(portions) && portions > 0) entry.portions = portions;
+          if (cell.logged === true) entry.logged = true;
           cleanSlots[slotKey] = entry;
         }
       }

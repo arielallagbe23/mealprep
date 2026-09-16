@@ -5,9 +5,10 @@ import { requireAuth } from "@/lib/authMiddleware";
 import { adminDb } from "@/lib/firebaseAdmin";
 
 const DAY_MEAL_KEYS = ["petit_dejeuner", "dejeuner", "collation_apres_midi", "diner", "collation_soir"];
+const ACTIVITY_KEYS = ["sedentaire", "leger", "modere", "intense", "tres_intense"];
 
 // GET /api/calories
-// Returns { entries: { "YYYY-MM-DD": { calories, proteines } }, dailyLimit, limitHistory, dailyProteinGoal, activeMealSlots }
+// Returns { entries: { "YYYY-MM-DD": { calories, proteines } }, dailyLimit, limitHistory, dailyProteinGoal, activeMealSlots, tdeeProfile }
 export async function GET() {
   const user = await requireAuth();
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -34,8 +35,9 @@ export async function GET() {
     const activeMealSlots = Array.isArray(calData.activeMealSlots) && calData.activeMealSlots.length > 0
       ? calData.activeMealSlots
       : DAY_MEAL_KEYS;
+    const tdeeProfile = calData.tdeeProfile ?? null;
 
-    return NextResponse.json({ entries, dailyLimit, limitHistory, dailyProteinGoal, activeMealSlots });
+    return NextResponse.json({ entries, dailyLimit, limitHistory, dailyProteinGoal, activeMealSlots, tdeeProfile });
   } catch (e) {
     console.error("GET /api/calories error:", e);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
@@ -103,6 +105,49 @@ export async function PUT(req) {
       update.activeMealSlots = activeMealSlots;
     }
 
+    // Profil TDEE (utilisé pour réajuster automatiquement calories/protéines
+    // à chaque nouveau poids enregistré) — set(null) pour le désactiver.
+    if (body?.tdeeProfile !== undefined) {
+      const p = body.tdeeProfile;
+      if (p === null) {
+        update.tdeeProfile = null;
+      } else {
+        if (
+          typeof p !== "object" ||
+          !["homme", "femme"].includes(p.sex) ||
+          !Number.isFinite(Number(p.age)) || Number(p.age) <= 0 ||
+          !Number.isFinite(Number(p.heightCm)) || Number(p.heightCm) <= 0 ||
+          !ACTIVITY_KEYS.includes(p.activity) ||
+          !["deficit", "date"].includes(p.mode)
+        ) {
+          return NextResponse.json({ error: "tdeeProfile invalide" }, { status: 400 });
+        }
+        const profile = {
+          sex: p.sex,
+          age: Number(p.age),
+          heightCm: Number(p.heightCm),
+          activity: p.activity,
+          mode: p.mode,
+        };
+        if (p.mode === "deficit") {
+          profile.deficitPerDay = Number.isFinite(Number(p.deficitPerDay)) ? Number(p.deficitPerDay) : 0;
+        } else {
+          if (!Number.isFinite(Number(p.targetWeight)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(p.targetDate ?? ""))) {
+            return NextResponse.json({ error: "tdeeProfile invalide" }, { status: 400 });
+          }
+          profile.targetWeight = Number(p.targetWeight);
+          profile.targetDate = String(p.targetDate);
+        }
+        if (p.proteinPerKg !== undefined && p.proteinPerKg !== null && String(p.proteinPerKg).trim() !== "") {
+          if (!Number.isFinite(Number(p.proteinPerKg)) || Number(p.proteinPerKg) <= 0) {
+            return NextResponse.json({ error: "tdeeProfile invalide" }, { status: 400 });
+          }
+          profile.proteinPerKg = Number(p.proteinPerKg);
+        }
+        update.tdeeProfile = profile;
+      }
+    }
+
     await docRef.set(update, { merge: true });
 
     const updatedSnap = await docRef.get();
@@ -116,6 +161,7 @@ export async function PUT(req) {
       activeMealSlots: Array.isArray(updated.activeMealSlots) && updated.activeMealSlots.length > 0
         ? updated.activeMealSlots
         : DAY_MEAL_KEYS,
+      tdeeProfile: updated.tdeeProfile ?? null,
     });
   } catch (e) {
     console.error("PUT /api/calories error:", e);

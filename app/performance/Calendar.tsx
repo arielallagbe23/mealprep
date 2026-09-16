@@ -48,6 +48,8 @@ export default function Calendar({
   const month = currentDate.getMonth();
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
+  // getDay() renvoie 0=dimanche..6=samedi ; la grille commence un lundi.
+  const firstDayOffset = (new Date(year, month, 1).getDay() + 6) % 7;
 
   return (
     <div className="rounded-2xl border border-gray-700 bg-gray-800 p-4">
@@ -81,6 +83,9 @@ export default function Calendar({
       </div>
 
       <div className="mt-2 grid grid-cols-7 gap-2">
+        {Array.from({ length: firstDayOffset }).map((_, i) => (
+          <div key={`empty-${i}`} aria-hidden="true" />
+        ))}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1;
 
@@ -107,6 +112,10 @@ export default function Calendar({
               dayClass = "bg-blue-600 text-white";
             } else if (caloriesOk) {
               dayClass = "bg-cyan-600 text-white";
+            } else {
+              // Suivi mais au-dessus de la limite calorique : bien distinct
+              // d'un jour non suivi (qui garde le gris par défaut).
+              dayClass = "bg-rose-700 text-white";
             }
           }
 
@@ -119,6 +128,13 @@ export default function Calendar({
             </div>
           );
         })}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-gray-400">
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-blue-600" /> Calories &amp; protéines OK</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-cyan-600" /> Calories OK, protéines non atteintes</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-rose-700" /> Au-dessus de la limite calorique</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-gray-900 border border-gray-700" /> Aucune entrée</span>
       </div>
     </div>
   );

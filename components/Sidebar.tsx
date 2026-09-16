@@ -18,7 +18,7 @@ import {
 
 const NAV_ITEMS = [
   { href: "/composer",         label: "Composer un repas",        icon: UtensilsCrossed, adminOnly: true },
-  { href: "/meals",            label: "Mes repas enregistrés",    icon: BookOpen,        adminOnly: true },
+  { href: "/meals",            label: "Mes repas enregistrés",    icon: BookOpen },
   { href: "/planning",         label: "Planifier ma semaine",     icon: CalendarDays },
   { href: "/shopping",         label: "Liste de courses",         icon: ShoppingCart },
   { href: "/referentiel",      label: "Référentiel aliments",     icon: Database,        adminOnly: true },

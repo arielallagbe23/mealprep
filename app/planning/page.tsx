@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import RequireAuth from "@/components/RequireAuth";
 import Sidebar from "@/components/Sidebar";
 import { DAY_MEAL_SLOTS, type DayMealKey } from "@/app/composer/constants";
@@ -17,10 +17,11 @@ type Meal = {
   mealType?: DayMealKey | null;
   items?: MealItem[];
   preparation?: string[];
+  photoUrl?: string | null;
 };
 
 type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-type MealCell = { mealId: string; portions?: number };
+type MealCell = { mealId: string; portions?: number; logged?: boolean };
 type Cell = MealCell | { cheat: true } | undefined;
 type PlanDays = Partial<Record<DayKey, Partial<Record<DayMealKey, Cell>>>>;
 
@@ -80,7 +81,17 @@ export default function PlanningPage() {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [prepOpenSlot, setPrepOpenSlot] = useState<DayMealKey | null>(null);
   const [addingSlot, setAddingSlot] = useState<DayMealKey | null>(null);
-  const [addedSlots, setAddedSlots] = useState<Set<DayMealKey>>(new Set());
+
+  // Toujours la dernière valeur de `plan`, même si un effet ou une double
+  // invocation (Strict Mode) fait tourner du code entre deux rendus — évite
+  // de lire/écraser une version obsolète depuis un setState en forme fonction.
+  const planRef = useRef(plan);
+  useEffect(() => { planRef.current = plan; }, [plan]);
+
+  // Garde-fou contre un double-clic rapide : une ref est mise à jour de façon
+  // synchrone (contrairement à un state), donc un second clic avant même le
+  // prochain rendu est bloqué immédiatement — évite de compter un repas 2x.
+  const addingSlotRef = useRef<DayMealKey | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -110,7 +121,46 @@ export default function PlanningPage() {
         }
 
         const dPlan = await rPlan.json();
-        if (rPlan.ok) setPlan(dPlan.days ?? {});
+        if (rPlan.ok) {
+          let days: PlanDays = dPlan.days ?? {};
+
+          // Si l'entrée calories d'aujourd'hui a été supprimée (ex: depuis
+          // Info user), les repas d'aujourd'hui marqués "logged" ne
+          // correspondent plus à rien de réel : on les repasse à l'état
+          // "non ajouté" pour que le bouton redevienne cliquable.
+          const todayISO = toISO(new Date());
+          const weekEndISO = addDays(weekStart, 6);
+          if (todayISO >= weekStart && todayISO <= weekEndISO) {
+            const todayEntry = rCal.ok ? dCal?.entries?.[todayISO] : undefined;
+            const hasRealEntry = !!todayEntry && (todayEntry.calories ?? 0) > 0;
+            if (!hasRealEntry) {
+              const day = todayDayKey();
+              const dayPlan = days[day];
+              if (dayPlan) {
+                const hadLogged = Object.values(dayPlan).some(
+                  (cell) => cell && "mealId" in cell && cell.logged
+                );
+                if (hadLogged) {
+                  const cleanedDayPlan: Partial<Record<DayMealKey, Cell>> = {};
+                  for (const [slotKey, cell] of Object.entries(dayPlan)) {
+                    cleanedDayPlan[slotKey as DayMealKey] =
+                      cell && "mealId" in cell ? { ...cell, logged: false } : cell;
+                  }
+                  days = { ...days, [day]: cleanedDayPlan };
+                  fetch("/api/weekly-plan", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ week: weekStart, days }),
+                  }).catch(() => {});
+                }
+              }
+            }
+          }
+
+          planRef.current = days;
+          setPlan(days);
+        }
       } catch (e: any) {
         if (alive) setErr(e.message || "Erreur");
       } finally {
@@ -264,9 +314,18 @@ export default function PlanningPage() {
   }
 
   // Confirme qu'un repas du jour a bien été mangé et l'ajoute au comptage
-  // calories/protéines (Performance) — cumulatif, un repas à la fois.
+  // calories/protéines (Performance) — cumulatif, un repas à la fois. Le
+  // statut "ajouté" est marqué sur la case du plan (logged: true) et
+  // sauvegardé avec le reste du plan, pour survivre à un rechargement —
+  // si le repas de ce créneau change, le flag repart naturellement à zéro.
   async function handleAddMealToPerf(slotKey: DayMealKey, kcal: number, prot: number) {
     if (!todayInfo || kcal <= 0) return;
+    if (addingSlotRef.current) return; // un ajout est déjà en cours (double-clic)
+    const day0 = todayDayKey();
+    const cell0 = planRef.current[day0]?.[slotKey];
+    if (cell0 && "mealId" in cell0 && cell0.logged) return; // déjà ajouté
+
+    addingSlotRef.current = slotKey;
     setAddingSlot(slotKey);
     try {
       const res = await fetch("/api/calories/entry", {
@@ -277,10 +336,30 @@ export default function PlanningPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Erreur");
-      setAddedSlots((s) => new Set(s).add(slotKey));
+
+      const day = todayDayKey();
+      const cell = planRef.current[day]?.[slotKey];
+      if (cell && "mealId" in cell) {
+        const next: PlanDays = {
+          ...planRef.current,
+          [day]: { ...planRef.current[day], [slotKey]: { ...cell, logged: true } },
+        };
+        planRef.current = next;
+        setPlan(next);
+        const putRes = await fetch("/api/weekly-plan", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ week: weekStart, days: next }),
+        });
+        if (!putRes.ok) console.error("weekly-plan PUT failed", putRes.status);
+      } else {
+        console.error("handleAddMealToPerf: cell introuvable pour", day, slotKey, planRef.current);
+      }
     } catch (e: any) {
       alert(e.message || "Impossible d'ajouter ce repas");
     } finally {
+      addingSlotRef.current = null;
       setAddingSlot(null);
     }
   }
@@ -311,7 +390,7 @@ export default function PlanningPage() {
         nom: it.nom,
         grams: Math.round(it.gramsPerPortion * portions),
       }));
-      return { slotKey, slotLabel, kind: "meal" as const, meal, kcal, prot, ingredients };
+      return { slotKey, slotLabel, kind: "meal" as const, meal, kcal, prot, ingredients, logged: !!cell.logged };
     });
     const totalKcal = rows.reduce((s, r) => s + (r.kind === "meal" ? r.kcal : 0), 0);
     const totalProt = r1(rows.reduce((s, r) => s + (r.kind === "meal" ? r.prot : 0), 0));
@@ -378,6 +457,14 @@ export default function PlanningPage() {
                       {row.kind === "meal" && (
                         <>
                           <p className="text-sm text-white mt-0.5">{row.meal.name}</p>
+                          {row.meal.photoUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={row.meal.photoUrl}
+                              alt={row.meal.name}
+                              className="w-full h-36 object-cover rounded-lg mt-2"
+                            />
+                          )}
                           {row.ingredients.length > 0 && (
                             <ul className="mt-2 flex flex-wrap gap-1.5">
                               {row.ingredients.map((ing, i) => (
@@ -411,14 +498,14 @@ export default function PlanningPage() {
                           <button
                             type="button"
                             onClick={() => handleAddMealToPerf(row.slotKey, row.kcal, row.prot)}
-                            disabled={addingSlot === row.slotKey || addedSlots.has(row.slotKey)}
+                            disabled={addingSlot === row.slotKey || row.logged}
                             className={`mt-2 w-full py-2 rounded-lg text-sm font-semibold transition disabled:opacity-60 ${
-                              addedSlots.has(row.slotKey)
+                              row.logged
                                 ? "bg-emerald-900/40 border border-emerald-700 text-emerald-300"
                                 : "bg-emerald-600 hover:bg-emerald-700 text-white"
                             }`}
                           >
-                            {addedSlots.has(row.slotKey)
+                            {row.logged
                               ? "✅ Ajouté à mes performances"
                               : addingSlot === row.slotKey
                               ? "Ajout…"

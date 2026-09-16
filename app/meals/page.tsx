@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useState } from "react";
 import RequireAuth from "@/components/RequireAuth";
 import Sidebar from "@/components/Sidebar";
-import BackButton from "@/components/BackButton";
 import { useAuth } from "@/components/useAuth";
 import { DAY_MEAL_SLOTS, type DayMealKey } from "@/app/composer/constants";
 
@@ -41,60 +40,13 @@ type Meal = {
   items?: MealItem[];
   mealType?: DayMealKey | null;
   preparation?: string[];
+  photoUrl?: string | null;
 };
-
-type DayStats = { calories: number; proteines: number };
-
-function calcMeal(meal: Meal, p: number) {
-  const items = meal.items ?? [];
-  const kcal = Math.round(
-    items.reduce((s, it) => s + (it.gramsPerPortion / 100) * it.caloriesPer100g, 0) * p
-  );
-  const prot = Math.round(
-    items.reduce((s, it) => s + (it.gramsPerPortion / 100) * (it.proteinesPer100g ?? 0), 0) * p * 10
-  ) / 10;
-  return { kcal, prot };
-}
 
 const todayISO = () => {
   const d = new Date();
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 };
-
-const r2 = (n: number) => Math.round(n * 100) / 100;
-
-function Gauge({ value, previewValue = 0, max, label, color, unit = "", inverse = false }: {
-  value: number; previewValue?: number; max: number; label: string; color: string; unit?: string; inverse?: boolean;
-}) {
-  const total = value + previewValue;
-  const basePct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
-  const totalPct = max > 0 ? Math.min(100, Math.round((total / max) * 100)) : 0;
-  const previewPct = Math.max(0, totalPct - basePct);
-  const remaining = r2(Math.max(0, max - total));
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-xs text-gray-400">
-        <span>{label}</span>
-        <span className="text-white font-medium">
-          {inverse ? `${remaining}${unit} restant` : `${remaining}${unit} à atteindre`}
-        </span>
-      </div>
-      <div className="h-3 rounded-full bg-gray-700 overflow-hidden flex">
-        <div className={`h-full transition-all ${color}`} style={{ width: `${basePct}%` }} />
-        {previewPct > 0 && (
-          <div className={`h-full transition-all opacity-50 ${color}`} style={{ width: `${previewPct}%` }} />
-        )}
-      </div>
-      <div className="flex justify-between text-xs text-gray-500">
-        <span>
-          {r2(value)}{unit} consommé{unit === " g" ? "s" : ""}
-          {previewValue > 0 && ` + ${r2(previewValue)}${unit} sélectionné${unit === " g" ? "s" : ""}`}
-        </span>
-        <span>objectif {r2(max)}{unit}</span>
-      </div>
-    </div>
-  );
-}
 
 export default function MealsPage() {
   const { user } = useAuth();
@@ -104,9 +56,6 @@ export default function MealsPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Record<string, boolean>>({});
-  const [portions, setPortions] = useState<Record<string, number>>({});
-  const [weeklyCount, setWeeklyCount] = useState<Record<string, number>>({});
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -117,28 +66,14 @@ export default function MealsPage() {
   const [draggedStepIndex, setDraggedStepIndex] = useState<number | null>(null);
   const [savingPrep, setSavingPrep] = useState(false);
 
+  const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<Record<string, string>>({});
+
   const [dailyLimit, setDailyLimit] = useState(0);
   const [proteinGoal, setProteinGoal] = useState(0);
-  const [todayStats, setTodayStats] = useState<DayStats>({ calories: 0, proteines: 0 });
-
-  const [logging, setLogging] = useState(false);
-  const [logSuccess, setLogSuccess] = useState<string | null>(null);
-  const [logErr, setLogErr] = useState<string | null>(null);
-
-  const [stickyBarEl, setStickyBarEl] = useState<HTMLDivElement | null>(null);
-  const [stickyBarHeight, setStickyBarHeight] = useState(0);
 
   const todayKey = todayISO();
   const [activeSlots, setActiveSlots] = useState<Record<DayMealKey, boolean>>(INITIAL_ACTIVE_SLOTS);
-
-  useEffect(() => {
-    if (!stickyBarEl) { setStickyBarHeight(0); return; }
-    const observer = new ResizeObserver(([entry]) => {
-      setStickyBarHeight(entry.contentRect.height);
-    });
-    observer.observe(stickyBarEl);
-    return () => observer.disconnect();
-  }, [stickyBarEl]);
 
   function toggleSlot(key: DayMealKey) {
     const next = { ...activeSlots, [key]: !activeSlots[key] };
@@ -150,24 +85,6 @@ export default function MealsPage() {
       localStorage.setItem(`mealSlotsActive:${todayKey}`, JSON.stringify(next));
     } catch {
       // localStorage indisponible : le choix ne sera pas mémorisé
-    }
-
-    // Repas sauté : on retire ses éventuels items de la sélection en cours
-    if (!next[key]) {
-      const label = DAY_MEAL_SLOTS.find((s) => s.key === key)?.label;
-      if (label) {
-        setChecked((c) => {
-          const updated = { ...c };
-          let changed = false;
-          for (const m of meals) {
-            if (categoryOf(m) === label && updated[m.id]) {
-              updated[m.id] = false;
-              changed = true;
-            }
-          }
-          return changed ? updated : c;
-        });
-      }
     }
   }
 
@@ -196,8 +113,6 @@ export default function MealsPage() {
         if (rCal.ok) {
           setDailyLimit(dCal.dailyLimit ?? 0);
           setProteinGoal(dCal.dailyProteinGoal ?? 0);
-          const today = dCal.entries?.[todayISO()];
-          if (today) setTodayStats({ calories: today.calories ?? 0, proteines: today.proteines ?? 0 });
 
           // Créneaux actifs : un override du jour (localStorage) prime sur la
           // préférence permanente définie dans "Info user".
@@ -245,13 +160,6 @@ export default function MealsPage() {
           }),
         }));
         setMeals(list);
-        const initP: Record<string, number> = {};
-        const initW: Record<string, number> = {};
-        const initC: Record<string, boolean> = {};
-        for (const m of list) { initP[m.id] = Number(m.portions) || 1; initW[m.id] = 1; initC[m.id] = false; }
-        setPortions(initP);
-        setWeeklyCount(initW);
-        setChecked(initC);
       } catch (e: any) {
         setErr(e.message || "Erreur");
       } finally {
@@ -277,72 +185,6 @@ export default function MealsPage() {
       ? [...slotGroups, { key: null, category: "Autres", meals: autres }]
       : slotGroups;
   }, [meals]);
-
-  const selection = useMemo(() => {
-    return meals
-      .filter((m) => checked[m.id])
-      .map((m) => ({ meal: m, ...calcMeal(m, portions[m.id] ?? 1) }));
-  }, [checked, meals, portions]);
-
-  const totalSelected = useMemo(() => ({
-    kcal: selection.reduce((s, x) => s + x.kcal, 0),
-    prot: Math.round(selection.reduce((s, x) => s + x.prot, 0) * 10) / 10,
-  }), [selection]);
-
-  const shoppingListHref = useMemo(() => {
-    if (selection.length === 0) return null;
-    const params = new URLSearchParams();
-    params.set("ids", selection.map(({ meal }) => meal.id).join(","));
-    params.set("mode", "shop");
-    for (const { meal } of selection) {
-      const qty = (portions[meal.id] ?? 1) * (weeklyCount[meal.id] ?? 1);
-      params.set(`p_${meal.id}`, String(r2(qty)));
-    }
-    return `/shopping?${params.toString()}`;
-  }, [selection, portions, weeklyCount]);
-
-  // Complète le % manquant pour atteindre l'objectif calories du jour, en
-  // appliquant ce facteur à tous les repas sélectionnés. Les protéines ne
-  // sont pas ciblées directement : elles suivent par ricochet, puisqu'elles
-  // sont recalculées à partir des mêmes portions.
-  function reajustement() {
-    if (dailyLimit <= 0 || totalSelected.kcal <= 0) return;
-    const scale = dailyLimit / totalSelected.kcal;
-    setPortions((prev) => {
-      const next = { ...prev };
-      for (const { meal } of selection) {
-        next[meal.id] = r2((prev[meal.id] ?? 1) * scale);
-      }
-      return next;
-    });
-  }
-
-  async function handleLogSelection() {
-    if (totalSelected.kcal <= 0) return;
-    setLogging(true);
-    setLogSuccess(null);
-    setLogErr(null);
-    try {
-      const res = await fetch("/api/calories/entry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ dateKey: todayISO(), calories: totalSelected.kcal, proteines: totalSelected.prot }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Erreur");
-      setTodayStats((s) => ({
-        calories: s.calories + totalSelected.kcal,
-        proteines: Math.round((s.proteines + totalSelected.prot) * 10) / 10,
-      }));
-      setLogSuccess(`✅ ${totalSelected.kcal} kcal · ${totalSelected.prot}g prot ajoutés`);
-      setChecked((s) => Object.fromEntries(Object.keys(s).map((k) => [k, false])));
-    } catch (e: any) {
-      setLogErr(e.message || "Erreur");
-    } finally {
-      setLogging(false);
-    }
-  }
 
   async function onDelete(id: string) {
     if (!confirm("Supprimer ce repas ?")) return;
@@ -393,18 +235,48 @@ export default function MealsPage() {
     }
   }
 
-  async function updateMealType(id: string, newType: DayMealKey | null) {
-    setMeals((ms) => ms.map((m) => (m.id === id ? { ...m, mealType: newType } : m)));
+  async function handlePhotoUpload(id: string, file: File) {
+    setPhotoError((s) => ({ ...s, [id]: "" }));
+    if (!file.type.startsWith("image/")) {
+      setPhotoError((s) => ({ ...s, [id]: "Fichier non supporté" }));
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setPhotoError((s) => ({ ...s, [id]: "Image trop lourde (8 Mo max)" }));
+      return;
+    }
+    setUploadingPhotoId(id);
     try {
-      const res = await fetch(`/api/meals/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`/api/meals/${id}/photo`, {
+        method: "POST",
         credentials: "include",
-        body: JSON.stringify({ mealType: newType }),
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Erreur d'envoi");
+      setMeals((ms) => ms.map((m) => (m.id === id ? { ...m, photoUrl: data.photoUrl } : m)));
+    } catch (e: any) {
+      setPhotoError((s) => ({ ...s, [id]: e.message || "Erreur" }));
+    } finally {
+      setUploadingPhotoId(null);
+    }
+  }
+
+  async function handlePhotoRemove(id: string) {
+    setUploadingPhotoId(id);
+    try {
+      const res = await fetch(`/api/meals/${id}/photo`, {
+        method: "DELETE",
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Erreur");
+      setMeals((ms) => ms.map((m) => (m.id === id ? { ...m, photoUrl: null } : m)));
     } catch {
-      alert("Impossible de changer le créneau de ce repas");
+      setPhotoError((s) => ({ ...s, [id]: "Impossible de retirer la photo" }));
+    } finally {
+      setUploadingPhotoId(null);
     }
   }
 
@@ -466,42 +338,13 @@ export default function MealsPage() {
   if (loading) return <RequireAuth><div className="min-h-screen bg-gray-900 flex flex-col md:flex-row"><Sidebar /><main className="flex-1 p-6 text-white">Chargement…</main></div></RequireAuth>;
   if (err) return <RequireAuth><div className="min-h-screen bg-gray-900 flex flex-col md:flex-row"><Sidebar /><main className="flex-1 p-6 text-white"><p className="text-red-400">{err}</p></main></div></RequireAuth>;
 
-  const hasSelection = selection.length > 0;
-
   return (
     <RequireAuth>
       <div className="min-h-screen bg-gray-900 text-white flex flex-col md:flex-row">
         <Sidebar />
-        <main className="flex-1 px-4 py-6" style={{ paddingBottom: hasSelection ? `${stickyBarHeight + 24}px` : "24px" }}>
+        <main className="flex-1 px-4 py-6 pb-6">
         <div className="max-w-xl mx-auto w-full">
         <h1 className="text-2xl font-bold mb-4">📚 Mes repas</h1>
-
-        {/* Jauges */}
-        {(dailyLimit > 0 || proteinGoal > 0) && (
-          <div className="mb-5 rounded-xl bg-gray-800 border border-gray-700 px-4 py-4 space-y-4">
-            <p className="text-sm font-semibold text-gray-300">Bilan du jour</p>
-            {dailyLimit > 0 && (
-              <Gauge
-                label="Calories"
-                value={todayStats.calories}
-                previewValue={totalSelected.kcal}
-                max={dailyLimit}
-                color="bg-orange-500"
-                inverse
-              />
-            )}
-            {proteinGoal > 0 && (
-              <Gauge
-                label="Protéines"
-                value={todayStats.proteines}
-                previewValue={totalSelected.prot}
-                max={proteinGoal}
-                color="bg-emerald-500"
-                unit=" g"
-              />
-            )}
-          </div>
-        )}
 
         <div className="space-y-6">
           {groupedMeals.map(({ key: slotKey, category, meals: catMeals }) => {
@@ -512,7 +355,7 @@ export default function MealsPage() {
 
             return (
             <div key={category}>
-              <div className="mb-3 px-1 py-1 border-b border-gray-700 pb-2">
+              <div className="mb-2 px-1 py-1 border-b border-gray-700 pb-1.5">
                 <div className="flex items-center gap-2.5">
                   {slotKey !== null && (
                     <input
@@ -552,151 +395,134 @@ export default function MealsPage() {
               ) : (
               <ul className="space-y-3">
             {catMeals.map((m) => {
-              const p = portions[m.id] ?? 1;
-              const wc = weeklyCount[m.id] ?? 1;
-              const { kcal, prot } = calcMeal(m, p);
-              const isChecked = !!checked[m.id];
-              const kcalRestant = dailyLimit > 0 ? dailyLimit - todayStats.calories - kcal : null;
               const isEditing = editingId === m.id;
 
               return (
                 <li
                   key={m.id}
-                  onClick={() => setChecked((s) => ({ ...s, [m.id]: !s[m.id] }))}
-                  className={`rounded-xl border p-4 space-y-5 cursor-pointer transition select-none ${
-                    isChecked ? "bg-blue-950/50 border-blue-500" : "bg-gray-800 border-gray-700"
-                  }`}
+                  className="rounded-xl border p-4 space-y-4 bg-gray-800 border-gray-700"
                 >
-                  <div className="flex items-start gap-3">
-                    {/* Checkbox visuel */}
-                    <div className={`w-6 h-6 mt-0.5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${
-                      isChecked ? "border-blue-500 bg-blue-500" : "border-gray-500"
-                    }`}>
-                      {isChecked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      {isEditing && isAdmin ? (
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            autoFocus
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") saveEditing(m.id);
-                              if (e.key === "Escape") cancelEditing();
-                            }}
-                            disabled={renaming}
-                            className="flex-1 min-w-0 bg-gray-900 border border-blue-500 rounded-lg px-2 py-1 font-semibold text-white"
+                  {/* Photo */}
+                  {(m.photoUrl || isAdmin) && (
+                    <div>
+                      <div className="relative">
+                        {m.photoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={m.photoUrl}
+                            alt={m.name}
+                            className="w-full h-64 object-cover rounded-lg"
                           />
-                          <button
-                            type="button"
-                            onClick={() => saveEditing(m.id)}
-                            disabled={renaming}
-                            className="text-emerald-400 hover:text-emerald-300 text-sm font-medium shrink-0 disabled:opacity-50"
-                          >✓</button>
-                          <button
-                            type="button"
-                            onClick={cancelEditing}
-                            disabled={renaming}
-                            className="text-gray-400 hover:text-gray-300 text-sm font-medium shrink-0 disabled:opacity-50"
-                          >✕</button>
-                        </div>
-                      ) : (
-                        <div className="flex items-start gap-2">
-                          <p className="font-semibold wrap-break-word">{m.name}</p>
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); startEditing(m); }}
-                              className="text-gray-500 hover:text-gray-300 shrink-0 mt-0.5"
-                              aria-label="Renommer le repas"
-                            >✏️</button>
-                          )}
-                        </div>
+                        ) : null}
+                        {isAdmin && (
+                          <div className={`flex items-center gap-1.5 ${m.photoUrl ? "absolute bottom-1.5 right-1.5" : ""}`}>
+                            <label
+                              title={m.photoUrl ? "Changer la photo" : "Ajouter une photo"}
+                              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm cursor-pointer transition active:scale-90 ${
+                                uploadingPhotoId === m.id
+                                  ? "bg-gray-700 opacity-50"
+                                  : m.photoUrl
+                                  ? "bg-black/50 hover:bg-black/70 backdrop-blur"
+                                  : "bg-gray-700 hover:bg-gray-600"
+                              }`}
+                            >
+                              {uploadingPhotoId === m.id ? "…" : "📷"}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                disabled={uploadingPhotoId === m.id}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  e.target.value = "";
+                                  if (file) handlePhotoUpload(m.id, file);
+                                }}
+                              />
+                            </label>
+                            {m.photoUrl && (
+                              <button
+                                type="button"
+                                title="Retirer la photo"
+                                onClick={() => handlePhotoRemove(m.id)}
+                                disabled={uploadingPhotoId === m.id}
+                                className="w-8 h-8 rounded-full bg-black/50 hover:bg-rose-800 backdrop-blur flex items-center justify-center text-sm active:scale-90 transition disabled:opacity-50"
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {photoError[m.id] && (
+                        <p className="text-xs text-red-400 mt-1">{photoError[m.id]}</p>
                       )}
-                      <div className="flex flex-wrap gap-x-3 mt-0.5 text-sm">
-                        <span className="text-blue-300 font-medium">{kcal} kcal</span>
-                        {prot > 0 && <span className="text-emerald-400 font-medium">{prot}g prot</span>}
-                        {kcalRestant !== null && (
-                          <span className={`font-medium ${kcalRestant >= 0 ? "text-gray-400" : "text-rose-400"}`}>
-                            → {kcalRestant >= 0 ? `${kcalRestant} restant` : `${Math.abs(kcalRestant)} dépassé`}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
-                        <span className="text-gray-500">Créneau :</span>
-                        {isAdmin ? (
-                          <select
-                            value={m.mealType ?? ""}
-                            onChange={(e) => updateMealType(m.id, (e.target.value || null) as DayMealKey | null)}
-                            className="bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-0.5 text-gray-300"
-                          >
-                            <option value="">Autres</option>
-                            {DAY_MEAL_SLOTS.map((slot) => (
-                              <option key={slot.key} value={slot.key}>{slot.label}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="text-gray-300">{categoryOf(m)}</span>
-                        )}
-                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Portions + actions */}
-                  <div className="flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center">
-                      <span className="font-bold text-base min-w-10 text-center">{r2(p)}</span>
-                      <button
-                        type="button"
-                        onClick={() => setPortions((s) => ({ ...s, [m.id]: Math.max(1, (s[m.id] ?? 1) - 1) }))}
-                        className="w-10 h-10 m-1 rounded-xl bg-rose-600 text-white text-xl font-bold hover:bg-rose-700 active:scale-90 transition flex items-center justify-center"
-                      >–</button>
-                      <button
-                        type="button"
-                        onClick={() => setPortions((s) => ({ ...s, [m.id]: (s[m.id] ?? 1) + 1 }))}
-                        className="w-10 h-10 m-1 rounded-xl bg-blue-600 text-white text-xl font-bold hover:bg-blue-700 active:scale-90 transition flex items-center justify-center"
-                      >+</button>
-                    </div>
-                    <div className="flex items-center">
-                      <a
-                        href={`/shopping?ids=${m.id}&p_${m.id}=${p}`}
-                        title="Modifier repas"
-                        className="w-10 h-10 m-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-90 transition flex items-center justify-center text-lg"
-                      >📝</a>
-                      <button
-                        type="button"
-                        onClick={() => togglePrep(m)}
-                        title="Préparation"
-                        className={`w-10 h-10 m-1 rounded-xl active:scale-90 transition flex items-center justify-center text-lg ${
-                          prepOpenId === m.id ? "bg-amber-500" : "bg-gray-700 hover:bg-gray-600"
-                        }`}
-                      >👨‍🍳</button>
-                      {isAdmin && (
+                  <div className="min-w-0">
+                    {isEditing && isAdmin ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          autoFocus
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveEditing(m.id);
+                            if (e.key === "Escape") cancelEditing();
+                          }}
+                          disabled={renaming}
+                          className="flex-1 min-w-0 bg-gray-900 border border-blue-500 rounded-lg px-2 py-1 font-semibold text-white"
+                        />
                         <button
-                          onClick={() => onDelete(m.id)}
-                          disabled={!!deleting[m.id]}
-                          className="w-10 h-10 m-1 rounded-xl bg-rose-700 hover:bg-rose-800 active:scale-90 transition flex items-center justify-center text-lg disabled:opacity-50"
-                        >🗑️</button>
-                      )}
-                    </div>
+                          type="button"
+                          onClick={() => saveEditing(m.id)}
+                          disabled={renaming}
+                          className="text-emerald-400 hover:text-emerald-300 text-sm font-medium shrink-0 disabled:opacity-50"
+                        >✓</button>
+                        <button
+                          type="button"
+                          onClick={cancelEditing}
+                          disabled={renaming}
+                          className="text-gray-400 hover:text-gray-300 text-sm font-medium shrink-0 disabled:opacity-50"
+                        >✕</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2">
+                        <p className="font-semibold wrap-break-word">{m.name}</p>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => startEditing(m)}
+                            className="text-gray-500 hover:text-gray-300 shrink-0 mt-0.5"
+                            aria-label="Renommer le repas"
+                          >✏️</button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Fréquence hebdomadaire (pour la liste de courses) */}
-                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                    <span className="text-xs text-gray-500">🗓️ Fois / semaine :</span>
+                  {/* Actions */}
+                  <div className="flex items-center gap-1">
+                    <a
+                      href={`/shopping?ids=${m.id}&p_${m.id}=${m.portions ?? 1}`}
+                      title="Modifier repas"
+                      className="w-10 h-10 m-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-90 transition flex items-center justify-center text-lg"
+                    >📝</a>
                     <button
                       type="button"
-                      onClick={() => setWeeklyCount((s) => ({ ...s, [m.id]: Math.max(1, (s[m.id] ?? 1) - 1) }))}
-                      className="w-7 h-7 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 active:scale-90 transition flex items-center justify-center text-sm"
-                    >–</button>
-                    <span className="font-semibold text-sm w-5 text-center">{wc}</span>
-                    <button
-                      type="button"
-                      onClick={() => setWeeklyCount((s) => ({ ...s, [m.id]: (s[m.id] ?? 1) + 1 }))}
-                      className="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 active:scale-90 transition flex items-center justify-center text-sm"
-                    >+</button>
+                      onClick={() => togglePrep(m)}
+                      title="Préparation"
+                      className={`w-10 h-10 m-1 rounded-xl active:scale-90 transition flex items-center justify-center text-lg ${
+                        prepOpenId === m.id ? "bg-amber-500" : "bg-gray-700 hover:bg-gray-600"
+                      }`}
+                    >👨‍🍳</button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => onDelete(m.id)}
+                        disabled={!!deleting[m.id]}
+                        className="w-10 h-10 m-1 rounded-xl bg-rose-700 hover:bg-rose-800 active:scale-90 transition flex items-center justify-center text-lg disabled:opacity-50"
+                      >🗑️</button>
+                    )}
                   </div>
 
                   {/* Préparation */}
@@ -791,52 +617,6 @@ export default function MealsPage() {
       </div>
         </main>
       </div>
-
-      {/* Barre sticky de log */}
-      {hasSelection && (
-        <div ref={setStickyBarEl} className="fixed bottom-0 left-0 right-0 md:left-64 z-50 bg-gray-900/95 border-t border-gray-700 px-4 py-3 space-y-2">
-          <div className="max-w-xl mx-auto space-y-2">
-            <div className="flex justify-between text-sm text-gray-300 px-1">
-              <span>{selection.length} repas sélectionné{selection.length > 1 ? "s" : ""}</span>
-              <span className="font-semibold text-white">{totalSelected.kcal} kcal · {totalSelected.prot}g prot</span>
-            </div>
-            {logSuccess && (
-              <div className="text-sm text-emerald-300 bg-emerald-900/40 border border-emerald-700 rounded-lg px-3 py-1.5 text-center">
-                {logSuccess}
-              </div>
-            )}
-            {logErr && (
-              <div className="text-sm text-rose-300 bg-rose-900/40 border border-rose-700 rounded-lg px-3 py-1.5 text-center">
-                {logErr}
-              </div>
-            )}
-            {shoppingListHref && (
-              <a
-                href={shoppingListHref}
-                className="w-full py-3 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition flex items-center justify-center"
-              >
-                🛒 Générer ma liste de courses
-              </a>
-            )}
-            <button
-              type="button"
-              onClick={reajustement}
-              className="w-full py-3 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition"
-            >
-              ⚖️ Réajustement
-            </button>
-            <button
-              onClick={handleLogSelection}
-              disabled={logging}
-              className={`w-full py-3 rounded-xl font-semibold text-white transition ${
-                logging ? "bg-gray-600 cursor-not-allowed" : "bg-orange-600 hover:bg-orange-700"
-              }`}
-            >
-              {logging ? "Ajout en cours…" : `📊 Logger ${totalSelected.kcal} kcal · ${totalSelected.prot}g prot`}
-            </button>
-          </div>
-        </div>
-      )}
     </RequireAuth>
   );
 }

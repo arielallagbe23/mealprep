@@ -75,9 +75,10 @@ function ShoppingPageInner() {
   const [mealName, setMealName] = useState("");
   const [mealType, setMealType] = useState<DayMealKey | "">("");
 
-  // Sauvegarde de la liste de courses (mode "courses")
+  // Sauvegarde de la liste de courses (mode "courses") — auto-enregistrée à
+  // chaque modification (coché, quantité, suppression, ajout), plus besoin
+  // de cliquer sur un bouton pour ne pas perdre ce qui a été coché.
   const [savingList, setSavingList] = useState(false);
-  const [saveListSuccess, setSaveListSuccess] = useState(false);
   const [saveListErr, setSaveListErr] = useState<string | null>(null);
 
   // Foods pour le picker
@@ -92,19 +93,36 @@ function ShoppingPageInner() {
 
   // Charger la liste de courses : depuis des repas (ids en query) ou, si aucun id,
   // reprendre la liste enregistrée pour continuer les courses là où on s'était arrêté.
+  // En mode courses, on recharge la même URL après un F5 pendant les courses :
+  // on régénère bien les quantités depuis les repas, mais on récupère les
+  // coches déjà faites dans la liste sauvegardée pour ne pas les perdre.
   useEffect(() => {
     if (initialIds.length > 0) {
       setLoading(true);
-      fetch("/api/shopping-list", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ mealIds: initialIds, portionsByMeal: initialPortions }),
-      })
-        .then((r) => r.json())
-        .then((data) => {
+      Promise.all([
+        fetch("/api/shopping-list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ mealIds: initialIds, portionsByMeal: initialPortions }),
+        }).then((r) => r.json()),
+        isShoppingMode
+          ? fetch("/api/shopping-list/current", { credentials: "include" })
+              .then((r) => r.json())
+              .catch(() => ({ items: [] }))
+          : Promise.resolve({ items: [] }),
+      ])
+        .then(([data, savedData]) => {
           if (data.error) throw new Error(data.error);
-          setItems((data.items || []).map((it: Item) => ({ ...it, bought: false })));
+          const savedBought = new Map<string, boolean>(
+            (savedData.items || []).map((it: Item) => [it.foodId ?? it.nom, !!it.bought])
+          );
+          const next = (data.items || []).map((it: Item) => ({
+            ...it,
+            bought: savedBought.get(it.foodId ?? it.nom) ?? false,
+          }));
+          setItems(next);
+          if (isShoppingMode) persistItems(next);
         })
         .catch((e) => setErr(e.message))
         .finally(() => setLoading(false));
@@ -143,33 +161,62 @@ function ShoppingPageInner() {
       .catch(() => {});
   }, [showPicker]);
 
+  // Sauvegarde silencieuse en arrière-plan (mode "courses" uniquement) — pas
+  // de spinner ni de message à chaque clic, juste une erreur si ça échoue.
+  async function persistItems(next: Item[]) {
+    if (!isShoppingMode) return;
+    try {
+      const res = await fetch("/api/shopping-list/current", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ items: next }),
+      });
+      if (!res.ok) throw new Error("Erreur de sauvegarde");
+      setSaveListErr(null);
+    } catch {
+      setSaveListErr("⚠️ Dernière modification non sauvegardée — vérifie ta connexion");
+    }
+  }
+
   function updateGrams(idx: number, delta: number) {
-    setItems((prev) =>
-      prev.map((it, i) =>
+    setItems((prev) => {
+      const next = prev.map((it, i) =>
         i === idx ? recompute({ ...it, grams: Math.max(5, it.grams + delta) }) : it
-      )
-    );
+      );
+      persistItems(next);
+      return next;
+    });
   }
 
   function setGrams(idx: number, val: number) {
-    setItems((prev) =>
-      prev.map((it, i) => (i === idx ? recompute({ ...it, grams: val }) : it))
-    );
+    setItems((prev) => prev.map((it, i) => (i === idx ? recompute({ ...it, grams: val }) : it)));
+  }
+
+  function commitGrams() {
+    persistItems(items);
   }
 
   function removeItem(idx: number) {
-    setItems((prev) => prev.filter((_, i) => i !== idx));
+    setItems((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      persistItems(next);
+      return next;
+    });
   }
 
   function toggleBought(idx: number) {
-    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, bought: !it.bought } : it)));
+    setItems((prev) => {
+      const next = prev.map((it, i) => (i === idx ? { ...it, bought: !it.bought } : it));
+      persistItems(next);
+      return next;
+    });
   }
 
   async function handleClearList() {
     if (!confirm("Vider la liste de courses ?")) return;
     setSavingList(true);
     setSaveListErr(null);
-    setSaveListSuccess(false);
     try {
       const res = await fetch("/api/shopping-list/current", {
         method: "PUT",
@@ -180,27 +227,6 @@ function ShoppingPageInner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Erreur");
       setItems([]);
-    } catch (e: any) {
-      setSaveListErr(e.message || "Erreur");
-    } finally {
-      setSavingList(false);
-    }
-  }
-
-  async function handleSaveList() {
-    setSavingList(true);
-    setSaveListErr(null);
-    setSaveListSuccess(false);
-    try {
-      const res = await fetch("/api/shopping-list/current", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ items }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Erreur");
-      setSaveListSuccess(true);
     } catch (e: any) {
       setSaveListErr(e.message || "Erreur");
     } finally {
@@ -245,17 +271,21 @@ function ShoppingPageInner() {
     if (existing >= 0) {
       updateGrams(existing, 50);
     } else {
-      setItems((prev) => [
-        ...prev,
-        recompute({
-          foodId: food.id,
-          nom: food.nom,
-          typeName: food.typeName || "Autres",
-          caloriesPer100g: food.caloriesPer100g,
-          proteinesPer100g: food.proteinesPer100g ?? 0,
-          grams: 100,
-        }),
-      ]);
+      setItems((prev) => {
+        const next = [
+          ...prev,
+          recompute({
+            foodId: food.id,
+            nom: food.nom,
+            typeName: food.typeName || "Autres",
+            caloriesPer100g: food.caloriesPer100g,
+            proteinesPer100g: food.proteinesPer100g ?? 0,
+            grams: 100,
+          }),
+        ];
+        persistItems(next);
+        return next;
+      });
     }
     setShowPicker(false);
     setPickerSearch("");
@@ -400,6 +430,7 @@ function ShoppingPageInner() {
                         type="number"
                         value={it.grams}
                         onChange={(e) => setGrams(i, Math.max(0, Number(e.target.value)))}
+                        onBlur={commitGrams}
                         className="w-16 text-center bg-gray-700 border border-gray-600 rounded-lg py-1 text-sm font-semibold"
                       />
                       <span className="text-xs text-gray-400">g</span>
@@ -455,11 +486,6 @@ function ShoppingPageInner() {
                     Liste combinée pour {initialIds.length} repas — les ajustements de quantité ne sont pas enregistrés dans tes repas.
                   </p>
                 )}
-                {saveListSuccess && (
-                  <div className="rounded-xl bg-emerald-900/40 border border-emerald-700 text-emerald-200 px-4 py-3 text-sm text-center mb-2">
-                    ✅ Liste enregistrée
-                  </div>
-                )}
                 {saveListErr && (
                   <div className="rounded-xl bg-rose-900/40 border border-rose-700 text-rose-200 px-4 py-3 text-sm text-center mb-2">
                     {saveListErr}
@@ -467,15 +493,9 @@ function ShoppingPageInner() {
                 )}
                 {items.length > 0 && (
                   <div className="space-y-2">
-                    <button
-                      onClick={handleSaveList}
-                      disabled={savingList}
-                      className={`w-full py-3 rounded-xl font-semibold text-white transition ${
-                        savingList ? "bg-gray-600 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
-                      }`}
-                    >
-                      {savingList ? "Enregistrement…" : "💾 Enregistrer ma liste"}
-                    </button>
+                    <p className="text-xs text-gray-500 text-center">
+                      💾 Sauvegarde automatique à chaque coche, quantité ou suppression.
+                    </p>
                     <button
                       onClick={handleClearList}
                       disabled={savingList}
