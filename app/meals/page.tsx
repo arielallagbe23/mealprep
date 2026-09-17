@@ -503,25 +503,35 @@ export default function MealsPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-1">
-                    <a
-                      href={`/shopping?ids=${m.id}&p_${m.id}=${m.portions ?? 1}`}
-                      title="Modifier repas"
-                      className="w-10 h-10 m-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-90 transition flex items-center justify-center text-lg"
-                    >📝</a>
-                    <button
-                      type="button"
-                      onClick={() => togglePrep(m)}
-                      title="Préparation"
-                      className={`w-10 h-10 m-1 rounded-xl active:scale-90 transition flex items-center justify-center text-lg ${
-                        prepOpenId === m.id ? "bg-amber-500" : "bg-gray-700 hover:bg-gray-600"
-                      }`}
-                    >👨‍🍳</button>
-                    {isAdmin && (
+                    {isAdmin ? (
+                      <>
+                        <a
+                          href={`/shopping?ids=${m.id}&p_${m.id}=${m.portions ?? 1}`}
+                          title="Modifier repas"
+                          className="w-10 h-10 m-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-90 transition flex items-center justify-center text-lg"
+                        >📝</a>
+                        <button
+                          type="button"
+                          onClick={() => togglePrep(m)}
+                          title="Préparation"
+                          className={`w-10 h-10 m-1 rounded-xl active:scale-90 transition flex items-center justify-center text-lg ${
+                            prepOpenId === m.id ? "bg-amber-500" : "bg-gray-700 hover:bg-gray-600"
+                          }`}
+                        >👨‍🍳</button>
+                        <button
+                          onClick={() => onDelete(m.id)}
+                          disabled={!!deleting[m.id]}
+                          className="w-10 h-10 m-1 rounded-xl bg-rose-700 hover:bg-rose-800 active:scale-90 transition flex items-center justify-center text-lg disabled:opacity-50"
+                        >🗑️</button>
+                      </>
+                    ) : (
                       <button
-                        onClick={() => onDelete(m.id)}
-                        disabled={!!deleting[m.id]}
-                        className="w-10 h-10 m-1 rounded-xl bg-rose-700 hover:bg-rose-800 active:scale-90 transition flex items-center justify-center text-lg disabled:opacity-50"
-                      >🗑️</button>
+                        type="button"
+                        onClick={() => togglePrep(m)}
+                        className={`m-1 px-3 h-10 rounded-xl active:scale-90 transition flex items-center justify-center gap-1.5 text-sm font-medium ${
+                          prepOpenId === m.id ? "bg-amber-500 text-white" : "bg-gray-700 hover:bg-gray-600 text-gray-200"
+                        }`}
+                      >📖 Voir recette</button>
                     )}
                   </div>
 

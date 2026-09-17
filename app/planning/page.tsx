@@ -206,6 +206,40 @@ export default function PlanningPage() {
     persist(next);
   }
 
+  // Batch cooking : recopie le repas de ce créneau sur les N-1 jours suivants
+  // de la semaine (même repas, mêmes portions) — pour cuisiner une fois et
+  // manger la même chose plusieurs jours d'affilée.
+  function repeatMeal(day: DayKey, slotKey: DayMealKey) {
+    const cell = plan[day]?.[slotKey];
+    if (!cell || !("mealId" in cell)) return;
+
+    const startIdx = DAY_KEYS.indexOf(day);
+    const maxDays = DAY_KEYS.length - startIdx; // jours restants dans la semaine, celui-ci inclus
+    const input = window.prompt(
+      `Répéter ce repas sur combien de jours au total (dont aujourd'hui) ? (2 à ${maxDays})`,
+      String(Math.min(3, maxDays)),
+    );
+    if (input === null) return;
+    const n = Math.round(Number(input));
+    if (!Number.isFinite(n) || n < 2) return;
+    const total = Math.min(n, maxDays);
+
+    const targetDays = DAY_KEYS.slice(startIdx + 1, startIdx + total);
+    const wouldOverwrite = targetDays.some((d) => {
+      const existing = plan[d]?.[slotKey];
+      return existing && ("cheat" in existing || existing.mealId !== cell.mealId);
+    });
+    if (wouldOverwrite && !confirm("Ça va remplacer ce qui est déjà prévu ces jours-là sur ce créneau. Continuer ?")) {
+      return;
+    }
+
+    const next: PlanDays = { ...plan };
+    for (const d of targetDays) {
+      next[d] = { ...next[d], [slotKey]: { mealId: cell.mealId, portions: cell.portions } };
+    }
+    persist(next);
+  }
+
   // Propose un menu complet pour la semaine : pioche un repas au hasard pour
   // chaque créneau actif, puis réajuste directement chaque jour sur
   // l'objectif calories de l'user — un seul bouton pour les deux étapes.
@@ -628,6 +662,14 @@ export default function PlanningPage() {
                               </select>
                               {cell && "mealId" in cell && cell.portions != null && cell.portions !== 1 && (
                                 <span className="text-xs text-indigo-300 shrink-0">×{cell.portions}</span>
+                              )}
+                              {cell && "mealId" in cell && DAY_KEYS.indexOf(day) < DAY_KEYS.length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => repeatMeal(day, slotKey)}
+                                  title="Cuisiner une fois, manger plusieurs jours : répéter ce repas sur les jours suivants"
+                                  className="shrink-0 w-8 h-8 rounded-lg bg-gray-700 hover:bg-gray-600 active:scale-90 transition flex items-center justify-center text-sm"
+                                >🔁</button>
                               )}
                             </div>
                           );
