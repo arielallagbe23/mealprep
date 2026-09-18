@@ -201,8 +201,14 @@ export default function PlanningPage() {
     }
   }
 
+  // Choix manuel d'un repas sur un créneau : le jour entier est réajusté
+  // dans la foulée sur l'objectif calories (même logique que "Proposer un
+  // menu aléatoire"), pour ne pas avoir à cliquer sur "Réajustement" à
+  // chaque changement — les protéines suivent par ricochet, puisque les
+  // portions de tous les repas du jour sont recalculées.
   function setCell(day: DayKey, slot: DayMealKey, cell: Cell) {
-    const next: PlanDays = { ...plan, [day]: { ...plan[day], [slot]: cell } };
+    const dayPlan = { ...plan[day], [slot]: cell };
+    const next: PlanDays = { ...plan, [day]: reajustedDayPlan(dayPlan) };
     persist(next);
   }
 
