@@ -636,10 +636,19 @@ export default function PlanningPage() {
                             ? ("cheat" in cell ? "__cheat__" : cell.mealId)
                             : "";
                           const options = mealsBySlot[slotKey]?.length ? mealsBySlot[slotKey]! : meals;
+                          const selectedMeal = cell && "mealId" in cell ? mealsById[cell.mealId] : null;
 
                           return (
                             <div key={slotKey} className="flex items-center gap-2">
                               <span className="text-xs text-gray-500 w-32 shrink-0">{slotLabel}</span>
+                              {selectedMeal?.photoUrl && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={selectedMeal.photoUrl}
+                                  alt={selectedMeal.name}
+                                  className="w-24 h-24 rounded-lg object-cover shrink-0"
+                                />
+                              )}
                               <select
                                 value={selectedValue}
                                 onChange={(e) => {
